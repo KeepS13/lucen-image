@@ -366,11 +366,15 @@ async function verifyModern(browser) {
     mimeType: "image/png",
     buffer: Buffer.from(PNG_BASE64, "base64"),
   });
+  for (let attempt = 0; attempt < 60 && state.inputs.size === 0; attempt += 1) {
+    await page.waitForTimeout(50);
+  }
+  if (state.inputs.size === 0) throw new Error("Reference image was not persisted before Gemini paste verification");
   await workspace.locator("select").first().selectOption(GEMINI_MODEL);
   check("新版选择 Gemini 后图生图禁用", await workspace.getByRole("button", { name: "图生图" }).isDisabled());
   check("新版 Gemini 参数控件显示", await workspace.getByLabel("宽高比").isVisible() && await workspace.getByLabel("分辨率").isVisible());
   check("新版 Gemini 隐藏 GPT 高级参数", (await workspace.getByRole("button", { name: /高级配置/ }).count()) === 0);
-  const inputCountBeforePaste = state.inputs.size;
+  const inputIdsBeforePaste = [...state.inputs.keys()].sort();
   await page.evaluate((pngBase64) => {
     const bytes = Uint8Array.from(atob(pngBase64), (char) => char.charCodeAt(0));
     const transfer = new DataTransfer();
@@ -378,7 +382,11 @@ async function verifyModern(browser) {
     document.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, clipboardData: transfer }));
   }, PNG_BASE64);
   await page.getByText("Gemini 仅支持文生图，请先切换到 GPT Image 2", { exact: true }).waitFor({ timeout: 3000 });
-  check("新版 Gemini 拦截粘贴图片且不写入输入图", state.inputs.size === inputCountBeforePaste);
+  await page.waitForTimeout(250);
+  check(
+    "新版 Gemini 拦截粘贴图片且不写入输入图",
+    JSON.stringify([...state.inputs.keys()].sort()) === JSON.stringify(inputIdsBeforePaste),
+  );
 
   await workspace.getByLabel("宽高比").selectOption("16:9");
   await workspace.getByLabel("分辨率").selectOption("2K");
