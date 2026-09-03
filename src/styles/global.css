@@ -1,0 +1,532 @@
+@import "tailwindcss";
+@import "@fontsource-variable/space-grotesk";
+
+@theme {
+  --font-display: "Space Grotesk Variable", "Microsoft YaHei", system-ui, sans-serif;
+  --font-sans: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+/* ---------- 主题变量 ---------- */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #07070d;
+  --bg-soft: #0c0c16;
+  --ink: #f2f2f8;
+  --muted: #9b9bae;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --panel: rgba(255, 255, 255, 0.045);
+  --panel-solid: #11111c;
+  --accent: #8b5cf6;
+  --accent-2: #22d3ee;
+  --accent-3: #f472b6;
+  --ok: #34d399;
+  --err: #fb7185;
+  --warn: #fbbf24;
+  --glow: rgba(139, 92, 246, 0.35);
+  --aurora-opacity: 0.5;
+  --grain-opacity: 0.05;
+  --tooltip-bg: rgba(20, 20, 32, 0.96);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef0fa;
+  --bg-soft: #e6e8f6;
+  --ink: #181826;
+  --muted: #5d5d72;
+  --line: rgba(20, 20, 50, 0.1);
+  --line-strong: rgba(20, 20, 50, 0.2);
+  --panel: rgba(255, 255, 255, 0.62);
+  --panel-solid: #ffffff;
+  --glow: rgba(139, 92, 246, 0.2);
+  --aurora-opacity: 0.34;
+  --grain-opacity: 0.03;
+  --tooltip-bg: rgba(28, 28, 44, 0.95);
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  transition: background-color 0.5s cubic-bezier(0.83, 0, 0.17, 1);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 60%, transparent);
+  color: #fff;
+}
+
+/* ---------- 滚动条 ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--accent) 35%, transparent) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--accent) 30%, transparent);
+  border-radius: 99px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- 玻璃面板 ---------- */
+.glass {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+.glass-strong {
+  background: color-mix(in oklab, var(--panel-solid) 86%, transparent);
+  border: 1px solid var(--line-strong);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+}
+
+/* ---------- 渐变描边卡片（前卫感的关键） ---------- */
+.neon-border {
+  position: relative;
+}
+.neon-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--accent) 65%, transparent),
+    transparent 30%,
+    transparent 70%,
+    color-mix(in oklab, var(--accent-2) 55%, transparent)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.neon-border:hover::before,
+.neon-border:focus-within::before {
+  opacity: 1;
+}
+
+/* ---------- 渐变文字 ---------- */
+.gradient-text {
+  background: linear-gradient(100deg, var(--accent) 0%, var(--accent-2) 50%, var(--accent-3) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-shift 8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+}
+
+@keyframes gradient-shift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+/* ---------- 表单 ---------- */
+.field-label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 13px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel-solid) 55%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+  transition:
+    border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.25s;
+}
+
+textarea.input {
+  min-height: 96px;
+  padding: 11px 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+select.input {
+  cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 13px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+
+select.input option {
+  background: var(--panel-solid);
+  color: var(--ink);
+}
+
+.input:focus {
+  border-color: color-mix(in oklab, var(--accent) 80%, transparent);
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent),
+    0 0 24px -6px var(--glow);
+}
+
+.input::placeholder {
+  color: color-mix(in oklab, var(--muted) 75%, transparent);
+}
+
+/* ---------- 按钮 ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel-solid) 55%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition:
+    border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.25s,
+    box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.25s;
+}
+
+.btn:hover {
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--line));
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  box-shadow: 0 0 26px -8px var(--glow);
+}
+
+.btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-primary {
+  border: none;
+  color: #fff;
+  background: linear-gradient(120deg, var(--accent), var(--accent-2) 55%, var(--accent-3));
+  background-size: 220% 100%;
+  background-position: 0% 50%;
+  box-shadow:
+    0 4px 22px -6px var(--glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition:
+    background-position 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s,
+    filter 0.25s;
+}
+
+.btn-primary:hover {
+  background-position: 100% 50%;
+  box-shadow:
+    0 6px 32px -6px var(--glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  filter: brightness(1.06);
+}
+
+.btn-danger:hover {
+  border-color: color-mix(in oklab, var(--err) 70%, transparent);
+  background: color-mix(in oklab, var(--err) 14%, transparent);
+  color: var(--err);
+  box-shadow: 0 0 24px -8px color-mix(in oklab, var(--err) 50%, transparent);
+}
+
+.icon-btn {
+  min-height: 34px;
+  min-width: 34px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+/* ---------- 小徽标 / 快捷键 ---------- */
+.kbd {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: color-mix(in oklab, var(--panel-solid) 70%, transparent);
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--muted);
+  box-shadow: 0 2px 0 var(--line);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  background: color-mix(in oklab, var(--panel-solid) 50%, transparent);
+}
+
+/* ---------- Tooltip（data-tip 属性） ---------- */
+[data-tip]:where(:not(.absolute):not(.fixed)) {
+  position: relative;
+}
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  translate: -50% 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--tooltip-bg);
+  border: 1px solid var(--line-strong);
+  color: #f4f4fa;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 100;
+  transition:
+    opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1) 0.15s,
+    translate 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s;
+}
+[data-tip]:hover::after {
+  opacity: 1;
+  translate: -50% 0;
+}
+
+.gallery-action-button {
+  position: relative;
+}
+
+.gallery-action-button::after {
+  content: attr(data-gallery-tip);
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  translate: -50% -3px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line-strong);
+  background: var(--tooltip-bg);
+  color: #f4f4fa;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 8px 20px -10px #000;
+  transition:
+    opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    translate 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gallery-action-button:hover::after {
+  opacity: 1;
+  translate: -50% 0;
+}
+
+/* ---------- 极光背景 ---------- */
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px) saturate(130%);
+  opacity: var(--aurora-opacity);
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+:root[data-theme="light"] .aurora-blob {
+  mix-blend-mode: multiply;
+}
+
+@keyframes drift-a {
+  0% {
+    transform: translate(-8%, -6%) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate(14%, 10%) scale(1.25) rotate(40deg);
+  }
+  66% {
+    transform: translate(-4%, 18%) scale(0.9) rotate(-25deg);
+  }
+  100% {
+    transform: translate(-8%, -6%) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes drift-b {
+  0% {
+    transform: translate(6%, 8%) scale(1.1);
+  }
+  50% {
+    transform: translate(-16%, -10%) scale(0.85);
+  }
+  100% {
+    transform: translate(6%, 8%) scale(1.1);
+  }
+}
+
+@keyframes drift-c {
+  0% {
+    transform: translate(0%, 0%) scale(0.95) rotate(0deg);
+  }
+  40% {
+    transform: translate(-10%, -14%) scale(1.2) rotate(-30deg);
+  }
+  75% {
+    transform: translate(12%, -4%) scale(1.05) rotate(20deg);
+  }
+  100% {
+    transform: translate(0%, 0%) scale(0.95) rotate(0deg);
+  }
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 0%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 0%, transparent 70%);
+}
+
+.bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity: var(--grain-opacity);
+}
+
+.watermark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: transparent;
+  -webkit-text-stroke: 1.5px color-mix(in oklab, var(--ink) 11%, transparent);
+  user-select: none;
+}
+
+/* ---------- 运行中的能量条 ---------- */
+@keyframes energy-sweep {
+  0% {
+    background-position: -180% 50%;
+  }
+  100% {
+    background-position: 280% 50%;
+  }
+}
+
+.energy-bar {
+  height: 3px;
+  border-radius: 99px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent) 25%,
+    var(--accent-2) 50%,
+    var(--accent-3) 75%,
+    transparent
+  );
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  animation: energy-sweep 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+/* ---------- 连接状态灯 ---------- */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 99px;
+  background: currentColor;
+  animation: pulse-ring 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+/* ---------- 结果卡 hover 光斑 ---------- */
+.result-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    280px circle at var(--glare-x, 50%) var(--glare-y, 50%),
+    rgba(255, 255, 255, 0.16),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- 视图过渡（主题切换圆形揭示） ---------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* ---------- 减少动态 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob,
+  .gradient-text,
+  .energy-bar,
+  .status-dot {
+    animation: none !important;
+  }
+}
+
+/* ---------- 拖拽高亮 ---------- */
+.drop-active {
+  outline: 2px dashed color-mix(in oklab, var(--accent-2) 80%, transparent);
+  outline-offset: -2px;
+  background: color-mix(in oklab, var(--accent-2) 8%, transparent) !important;
+}

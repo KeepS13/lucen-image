@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run typecheck
+      - run: node --check lucen-auth.cjs && node --check lucen-local-proxy.cjs && node --check remit-upload.cjs
+      - run: npm run verify:auth
+      - run: npm run verify:uploads
+      - run: npm run build
+      - name: Start mock-only browser target
+        run: |
+          LUCEN_DATA_DIR="$RUNNER_TEMP/lucen-data" LUCEN_DISABLE_REMIT_UPLOAD=1 node lucen-local-proxy.cjs >"$RUNNER_TEMP/lucen.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/lucen.pid"
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:8787/__health && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/lucen.log"
+          exit 1
+      - run: npm run verify:providers
+      - name: Stop browser target
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/lucen.pid" ]; then kill -TERM "$(cat "$RUNNER_TEMP/lucen.pid")" || true; fi
+      - name: Build local container image
+        run: docker build --platform linux/amd64 -t lucen-image:ci .

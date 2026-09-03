@@ -1,0 +1,41 @@
+{
+  "name": "lucen-image-workbench",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "start": "node lucen-local-proxy.cjs",
+    "verify:auth": "node verify-web-auth.cjs",
+    "verify:providers": "node verify-providers.cjs",
+    "verify:uploads": "node verify-remit-queue.cjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/space-grotesk": "^5.2.5",
+    "better-sqlite3": "^12.10.0",
+    "dexie": "^4.0.11",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.525.0",
+    "motion": "^12.18.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "sharp": "^0.35.4",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.10",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "playwright-core": "^1.60.0",
+    "tailwindcss": "^4.1.10",
+    "typescript": "^5.8.3",
+    "vite": "^7.3.6"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

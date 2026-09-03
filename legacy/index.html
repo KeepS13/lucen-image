@@ -1,0 +1,2467 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lucen 图片工作台</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='og' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f59e0b'/%3E%3Cstop offset='100%25' stop-color='%23f97316'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='8' y='8' width='84' height='84' rx='16' fill='%23ffffff'/%3E%3Crect x='9' y='9' width='82' height='82' rx='15' fill='%23fef3c7' stroke='%23e5e7eb' stroke-width='0.5'/%3E%3Crect x='20' y='20' width='28' height='28' rx='5' fill='url(%23og)'/%3E%3Ctext x='55' y='43' font-family='Arial,sans-serif' font-size='32' font-weight='700' fill='%23047857'%3EL%3C/text%3E%3Ccircle cx='78' cy='26' r='3' fill='%23f59e0b' opacity='0.5'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #fef3c7;
+      --panel: #ffffff;
+      --panel-2: #fef9e7;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #047857;
+      --accent-dark: #065f46;
+      --accent-2: #f59e0b;
+      --danger: #dc2626;
+      --ok: #059669;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.1);
+      --shadow-xl: 0 10px 15px rgba(0, 0, 0, 0.1);
+      --radius: 12px;
+      --radius-sm: 8px;
+      color-scheme: light;
+      font-family: "Microsoft YaHei", "Segoe UI", system-ui, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #fef3c7 0%, #fef9e7 50%, #fef3c7 100%);
+      color: var(--ink);
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: none;
+    }
+
+    body::after {
+      content: none;
+    }
+
+    @keyframes drift {
+      from { transform: translate(0, 0); }
+      to { transform: translate(50px, 50px); }
+    }
+
+    .shell {
+      position: relative;
+      z-index: 2;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      min-height: 38px;
+      border-radius: var(--radius-sm);
+      padding: 0 16px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button::before {
+      content: none;
+    }
+
+    button:hover::before {
+      opacity: 0;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+      background: #f0fdf4;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    select option:disabled {
+      color: #999 !important;
+    }
+
+    .primary {
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .primary::before {
+      content: none;
+    }
+
+    @keyframes borderRotate {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .primary:hover {
+      background: var(--accent-dark);
+      border-color: var(--accent-dark);
+      box-shadow: 0 4px 6px rgba(4, 120, 87, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .danger {
+      color: var(--danger);
+      border-color: var(--danger);
+      background: #fef2f2;
+    }
+
+    .danger:hover {
+      background: #fee2e2;
+      border-color: #b91c1c;
+      box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+    }
+
+    .ghost {
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .ghost:hover {
+      background: rgba(4, 120, 87, 0.05);
+    }
+
+    .icon {
+      width: 16px;
+      height: 16px;
+      display: inline-block;
+      flex: 0 0 auto;
+    }
+
+    .shell {
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    .shell > div:last-child {
+      margin-left: 320px;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 0;
+      box-shadow: var(--shadow-lg);
+      overflow-y: auto;
+      overflow-x: hidden;
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 320px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar::before {
+      content: none;
+    }
+
+    .brand-row {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 20px 18px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      flex: 0 0 auto;
+      position: relative;
+      overflow: visible;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .mark svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      filter: none;
+    }
+
+    @keyframes glow {
+      0% { filter: none; }
+      100% { filter: none; }
+    }
+
+    h1 {
+      font-size: 17px;
+      line-height: 1.2;
+      margin: 0;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      font-weight: 700;
+      text-shadow: none;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 400;
+    }
+
+    .status-line {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+      word-wrap: break-word;
+      background: transparent;
+      padding: 8px 0 0;
+      border-radius: 0;
+      border: 0;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-top: 4px;
+    }
+
+    .actions button {
+      width: 100%;
+      min-height: 40px;
+      font-size: 14px;
+    }
+
+    .settings {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 20px 18px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .provider-setting {
+      display: grid;
+      gap: 8px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .provider-setting .actions {
+      flex-direction: row;
+    }
+
+    .provider-setting-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .provider-status {
+      min-height: 18px;
+      color: var(--muted);
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .provider-status.ok { color: var(--ok); }
+    .provider-status.err { color: var(--danger); }
+
+    .upload-queue {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel-2);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .upload-queue-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .upload-queue-errors {
+      display: grid;
+      gap: 6px;
+    }
+
+    .upload-queue-error {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .upload-queue-error span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .upload-queue-error button {
+      min-height: 28px;
+      padding: 0 8px;
+      font-size: 11px;
+    }
+
+    label.field {
+      display: grid;
+      gap: 6px;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 500;
+      min-width: 0;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel);
+      color: var(--ink);
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    /* 下拉框选项样式 */
+    select option {
+      background: var(--panel);
+      color: var(--ink);
+      padding: 8px;
+    }
+
+    select option:hover {
+      background: #f0fdf4;
+    }
+
+    select option:checked {
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    select option:disabled {
+      color: var(--muted);
+      background: #f9fafb;
+    }
+
+    input,
+    select {
+      min-height: 38px;
+      padding: 0 12px;
+    }
+
+    textarea {
+      min-height: 112px;
+      resize: vertical;
+      padding: 10px 12px;
+      line-height: 1.5;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      background: var(--panel);
+      box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.1);
+      transform: none;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: var(--muted);
+    }
+
+    .checkline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      font-size: 13px;
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    .checkline input {
+      width: 18px;
+      min-height: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      gap: 14px;
+      padding: 18px;
+      align-items: start;
+    }
+
+    .workspace {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      min-width: 0;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .workspace::before {
+      content: none;
+    }
+
+    .workspace:hover {
+      border-color: var(--accent);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .workspace-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+      position: relative;
+      z-index: 1;
+    }
+
+    .workspace-title {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      min-height: 32px;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--ink);
+      text-shadow: none;
+    }
+
+    .workspace-title:focus {
+      box-shadow: none;
+      border-color: transparent;
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    .mini-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .mini-actions button {
+      min-width: 34px;
+      width: 34px;
+      padding: 0;
+    }
+
+    .workspace-body {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 5px;
+      background: var(--panel-2);
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
+
+    .segmented button {
+      border: 0;
+      background: transparent;
+      min-height: 36px;
+      font-weight: 600;
+      color: var(--muted);
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .segmented button.active {
+      background: var(--panel);
+      color: var(--accent);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      text-shadow: none;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+      gap: 10px;
+      align-items: end;
+    }
+
+    .model-field {
+      grid-column: span 2;
+    }
+
+    .edit-input {
+      display: none;
+      grid-template-columns: 90px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border: 2px dashed var(--line);
+      border-radius: 10px;
+      background: var(--panel-2);
+    }
+
+    .workspace.edit-mode .edit-input {
+      display: grid;
+    }
+
+    .thumb {
+      width: 90px;
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      border: 2px dashed var(--line);
+      background: #f9fafb;
+      object-fit: cover;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .thumb:not([src]),
+    .thumb[src=""] {
+      border-style: dashed;
+    }
+
+    .thumb[src]:not([src=""]) {
+      border-style: solid;
+      cursor: zoom-in;
+    }
+
+    .thumb::before {
+      content: '📎';
+      font-size: 32px;
+      opacity: 0.3;
+      position: absolute;
+    }
+
+    .thumb[src]:not([src=""])::before {
+      content: none;
+    }
+
+    .thumb:hover {
+      border-color: var(--accent);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      transform: scale(1.05);
+    }
+
+    .thumb:not([src]):hover::before,
+    .thumb[src=""]:hover::before {
+      opacity: 0.5;
+    }
+
+    .file-stack {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .file-stack .field {
+      margin: 0;
+    }
+
+    .paste-hint {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .paste-hint code {
+      background: rgba(0, 0, 0, 0.05);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: Consolas, monospace;
+      font-size: 10px;
+    }
+
+    input[type="file"] {
+      padding: 6px;
+      font-size: 12px;
+    }
+
+    .run-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .message {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .message.ok {
+      color: var(--ok);
+    }
+
+    .message.err {
+      color: var(--danger);
+    }
+
+    .results {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+      gap: 10px;
+      min-height: 20px;
+    }
+
+    .result {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      overflow: hidden;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .result::before {
+      content: none;
+    }
+
+    .result:hover::before {
+      opacity: 0;
+    }
+
+    .result:hover {
+      border-color: var(--accent);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+    }
+
+    .result img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      display: block;
+      object-fit: cover;
+      background: #f9fafb;
+      cursor: zoom-in;
+      transition: all 0.2s ease;
+    }
+
+    .result img:hover {
+      opacity: 0.9;
+    }
+
+    .result img.thumbnail-pending {
+      background: #f1f5f9;
+      opacity: 0.55;
+    }
+
+    .result-meta {
+      padding: 8px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .result-title {
+      color: var(--muted);
+      font-size: 12px;
+      min-height: 18px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .result-upload-status {
+      width: fit-content;
+      max-width: 100%;
+      padding: 3px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--panel-2);
+      font-size: 10px;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .result-upload-status.succeeded { color: var(--ok); border-color: #a7f3d0; }
+    .result-upload-status.retry_wait,
+    .result-upload-status.blocked { color: var(--danger); border-color: #fecaca; }
+
+    .result-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .result-actions button,
+    .result-actions a {
+      min-height: 32px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      padding: 0 10px;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      font-weight: 500;
+    }
+
+    .result-actions button:hover,
+    .result-actions a:hover {
+      border-color: var(--accent);
+      background: #f0fdf4;
+      color: var(--accent);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      transform: translateY(-1px);
+    }
+
+    .empty {
+      border: 2px dashed var(--line);
+      border-radius: 10px;
+      color: var(--muted);
+      padding: 24px 16px;
+      font-size: 14px;
+      background: var(--panel-2);
+      text-align: center;
+    }
+
+    .diagnostic {
+      display: none;
+      margin: 0 18px 14px 18px;
+      border: 1px solid #f59e0b;
+      background: #fef3c7;
+      color: #92400e;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+      box-shadow: var(--shadow);
+    }
+
+    .diagnostic.show {
+      display: block;
+    }
+
+    .kbd {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      background: #ffffff;
+      border: 1px solid #f59e0b;
+      border-radius: 6px;
+      padding: 2px 6px;
+      box-shadow: none;
+      color: #92400e;
+    }
+
+    .viewer {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      grid-template-rows: auto 1fr;
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(10px);
+      color: #fff;
+    }
+
+    .viewer.open {
+      display: grid;
+    }
+
+    .viewer-toolbar {
+      min-height: 56px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 14px;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .viewer-title {
+      min-width: 0;
+      color: rgba(255,255,255,.9);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .viewer-actions {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .viewer-actions button {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      min-width: 38px;
+    }
+
+    .viewer-actions button:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.4);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .viewer-stage {
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .viewer-stage.dragging {
+      cursor: grabbing;
+    }
+
+    .viewer-image {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      max-width: none;
+      max-height: none;
+      transform-origin: center center;
+      user-select: none;
+      -webkit-user-drag: none;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .viewer-hint {
+      position: absolute;
+      left: 14px;
+      bottom: 12px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 12px;
+      pointer-events: none;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    }
+
+    @media (max-width: 980px) {
+      .shell > div:last-child {
+        margin-left: 0;
+      }
+
+      .topbar {
+        position: static;
+        width: auto;
+        height: auto;
+        border-radius: var(--radius);
+        margin: 14px;
+      }
+
+      .brand-row,
+      .run-row {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+
+      .actions button {
+        flex: 1 1 auto;
+        width: auto;
+      }
+
+      .workspace-grid {
+        grid-template-columns: 1fr;
+        padding: 0 14px 24px;
+      }
+
+      .diagnostic {
+        margin: 0 14px 14px;
+      }
+
+      .workspace:hover {
+        transform: none;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .topbar {
+        border-radius: 0;
+        margin: 0;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+      }
+
+      .model-field {
+        grid-column: span 1;
+      }
+
+      .viewer-toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .workspace-head {
+        grid-template-columns: 1fr;
+      }
+
+      .mini-actions {
+        justify-content: stretch;
+      }
+
+      .mini-actions button {
+        flex: 1;
+        width: auto;
+      }
+
+      .edit-input {
+        grid-template-columns: 1fr;
+      }
+
+      .thumb {
+        width: 100%;
+        max-height: 220px;
+      }
+
+      .workspace-grid {
+        padding: 0 8px 16px;
+      }
+    }
+
+    /* Tooltip 样式 */
+    [title] {
+      position: relative;
+    }
+
+    button[title]::after,
+    input[title]::after,
+    [title]:not(input):not(button)::after {
+      content: attr(title);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      padding: 6px 12px;
+      background: rgba(31, 41, 55, 0.95);
+      color: #ffffff;
+      font-size: 12px;
+      white-space: nowrap;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+      z-index: 1000;
+      font-weight: 400;
+    }
+
+    button[title]:hover::after,
+    input[title]:hover::after,
+    [title]:not(input):not(button):hover::after {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* 箭头 */
+    button[title]::before,
+    input[title]::before,
+    [title]:not(input):not(button)::before {
+      content: '';
+      position: absolute;
+      bottom: calc(100% + 2px);
+      left: 50%;
+      transform: translateX(-50%);
+      border: 4px solid transparent;
+      border-top-color: rgba(31, 41, 55, 0.95);
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+      z-index: 1000;
+    }
+
+    button[title]:hover::before,
+    input[title]:hover::before,
+    [title]:not(input):not(button):hover::before {
+      opacity: 1;
+      visibility: visible;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <aside class="topbar" aria-label="全局设置">
+      <div class="brand-row">
+        <div class="brand">
+          <div class="mark" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+              <defs>
+                <linearGradient id="logoOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#f59e0b"/>
+                  <stop offset="100%" stop-color="#f97316"/>
+                </linearGradient>
+              </defs>
+
+              <!-- 背景 -->
+              <rect x="8" y="8" width="84" height="84" rx="16" fill="#ffffff"/>
+              <rect x="9" y="9" width="82" height="82" rx="15" fill="#fef3c7" stroke="#e5e7eb" stroke-width="0.5"/>
+
+              <!-- 橙黄色方块 -->
+              <rect x="20" y="20" width="28" height="28" rx="5" fill="url(#logoOrange)"/>
+
+              <!-- 深青绿色字母 L -->
+              <text x="55" y="43" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#047857">L</text>
+
+              <!-- 小装饰 -->
+              <circle cx="78" cy="26" r="3" fill="#f59e0b" opacity="0.5"/>
+            </svg>
+          </div>
+          <div>
+            <h1>Lucen 图片工作台</h1>
+            <div class="subtle">GPT Image 2 + Gemini 3.1 · 多窗口</div>
+          </div>
+        </div>
+        <div id="globalStatus" class="status-line">正在读取服务端配置。</div>
+        <div class="actions">
+          <button id="newWorkspaceBtn" class="primary" type="button" title="新建一个独立生图窗口">
+            <span class="icon" aria-hidden="true">＋</span>新窗口
+          </button>
+          <button id="popoutBtn" type="button" title="打开同一个 HTML 的新浏览器窗口">
+            <span class="icon" aria-hidden="true">□</span>新浏览器窗
+          </button>
+          <button id="logoutBtn" type="button" title="退出当前登录会话">退出登录</button>
+        </div>
+      </div>
+      <div class="settings">
+        <div class="provider-setting">
+          <div class="provider-setting-head">
+            <span>GPT Image 2</span>
+            <span id="gptConfiguredState" class="provider-status">读取中</span>
+          </div>
+          <div class="actions">
+            <button id="testGptBtn" type="button">测试 GPT</button>
+          </div>
+          <div id="gptConnectionStatus" class="provider-status">未连接</div>
+        </div>
+        <div class="provider-setting">
+          <div class="provider-setting-head">
+            <span>Gemini 3.1</span>
+            <span id="geminiConfiguredState" class="provider-status">读取中</span>
+          </div>
+          <div class="actions">
+            <button id="testGeminiBtn" type="button">测试 Gemini</button>
+          </div>
+          <div id="geminiConnectionStatus" class="provider-status">未连接</div>
+        </div>
+        <section class="upload-queue" aria-label="Remit 图床队列">
+          <div class="upload-queue-head">
+            <span>Remit 图床</span>
+            <span id="uploadQueueState">读取中</span>
+          </div>
+          <div id="uploadQueueCounts">正在读取队列...</div>
+          <div id="uploadMigration"></div>
+          <div id="uploadQueueErrors" class="upload-queue-errors"></div>
+        </section>
+      </div>
+    </aside>
+
+    <div>
+      <div id="diagnostic" class="diagnostic" role="status"></div>
+      <section id="workspaceGrid" class="workspace-grid" aria-label="生图窗口"></section>
+    </div>
+  </main>
+
+  <div id="imageViewer" class="viewer" role="dialog" aria-modal="true" aria-label="图片预览">
+    <div class="viewer-toolbar">
+      <div id="viewerTitle" class="viewer-title">图片预览</div>
+      <div class="viewer-actions">
+        <button id="viewerZoomOut" type="button" title="缩小">−</button>
+        <button id="viewerZoomReset" type="button" title="适应窗口">适应</button>
+        <button id="viewerZoomIn" type="button" title="放大">＋</button>
+        <button id="viewerOpenRaw" type="button" title="在新标签打开">打开</button>
+        <button id="viewerClose" type="button" title="关闭">×</button>
+      </div>
+    </div>
+    <div id="viewerStage" class="viewer-stage">
+      <img id="viewerImage" class="viewer-image" alt="图片预览">
+      <div class="viewer-hint">滚轮缩放 · 拖拽移动 · Esc 关闭</div>
+    </div>
+  </div>
+
+  <template id="workspaceTemplate">
+    <article class="workspace">
+      <div class="workspace-head">
+        <input class="workspace-title" aria-label="窗口名称">
+        <div class="mini-actions">
+          <button class="duplicate-btn" type="button" title="复制窗口">⧉</button>
+          <button class="clear-btn" type="button" title="清空结果">⌫</button>
+          <button class="remove-btn danger" type="button" title="关闭窗口">×</button>
+        </div>
+      </div>
+      <div class="workspace-body">
+        <div class="segmented" role="tablist" aria-label="生成模式">
+          <button class="mode-btn active" data-mode="text" type="button">生图</button>
+          <button class="mode-btn" data-mode="edit" type="button">图生图</button>
+        </div>
+
+        <label class="field">
+          Prompt
+          <textarea class="prompt-input" spellcheck="false" placeholder="描述要生成或调整的图片"></textarea>
+        </label>
+
+        <div class="edit-input">
+          <img class="thumb edit-preview" alt="二创输入预览">
+          <div class="file-stack">
+            <label class="field">
+              二创输入图
+              <input class="image-file-input" type="file" accept="image/*">
+            </label>
+            <div class="message edit-file-label">未选择图片</div>
+            <div class="paste-hint">💡 支持直接粘贴图片 <code>Ctrl+V</code></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <label class="field">
+            尺寸
+            <select class="size-select gpt-control">
+              <option value="auto">auto</option>
+              <option value="1024x1024">1024x1024</option>
+              <option value="1536x1024">1536x1024</option>
+              <option value="1024x1536">1024x1536</option>
+              <option value="2048x2048">2048x2048</option>
+              <option value="2048x1152">2048x1152</option>
+              <option value="3840x2160">3840x2160</option>
+              <option value="2160x3840">2160x3840</option>
+            </select>
+          </label>
+          <label class="field gemini-control" hidden>
+            宽高比
+            <select class="aspect-ratio-select">
+              <option>1:1</option>
+              <option>2:3</option>
+              <option>3:2</option>
+              <option>3:4</option>
+              <option>4:3</option>
+              <option>4:5</option>
+              <option>5:4</option>
+              <option>9:16</option>
+              <option>16:9</option>
+              <option>21:9</option>
+            </select>
+          </label>
+          <label class="field gemini-control" hidden>
+            分辨率
+            <select class="image-size-select">
+              <option>1K</option>
+              <option>2K</option>
+              <option>4K</option>
+            </select>
+          </label>
+          <label class="field">
+            张数
+            <select class="count-select">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </label>
+          <label class="field model-field">
+            模型
+            <select class="model-select">
+              <option value="gpt-image-2">gpt-image-2</option>
+              <option value="gemini-3.1-flash-image">gemini-3.1-flash-image</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="run-row">
+          <div class="message workspace-status">就绪</div>
+          <button class="cancel-btn" type="button" disabled>取消</button>
+          <button class="run-btn primary" type="button">开始生成</button>
+        </div>
+
+        <div class="results"></div>
+      </div>
+    </article>
+  </template>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const GPT_MODEL = "gpt-image-2";
+      const GEMINI_MODEL = "gemini-3.1-flash-image";
+      const PROXY_BASE_URL = "/api/lucen";
+      const LOCAL_API_BASE = "/api/local";
+      const LOCAL_KEY = "lucen-image-studio-settings";
+      const KEY_SETTINGS_KEYS = [LOCAL_KEY, "lucen2-settings"];
+      const KEY_SESSION_KEYS = [
+        "lucen-image-studio-session-key",
+        "lucen-image-studio-gemini-session-key",
+        "lucen2-session-key",
+        "lucen2-gemini-session-key"
+      ];
+
+      const els = {
+        grid: document.getElementById("workspaceGrid"),
+        template: document.getElementById("workspaceTemplate"),
+        status: document.getElementById("globalStatus"),
+        diagnostic: document.getElementById("diagnostic"),
+        newWorkspace: document.getElementById("newWorkspaceBtn"),
+        popout: document.getElementById("popoutBtn"),
+        logout: document.getElementById("logoutBtn"),
+        testGpt: document.getElementById("testGptBtn"),
+        testGemini: document.getElementById("testGeminiBtn"),
+        gptConfigured: document.getElementById("gptConfiguredState"),
+        geminiConfigured: document.getElementById("geminiConfiguredState"),
+        gptConnection: document.getElementById("gptConnectionStatus"),
+        geminiConnection: document.getElementById("geminiConnectionStatus"),
+        uploadQueueState: document.getElementById("uploadQueueState"),
+        uploadQueueCounts: document.getElementById("uploadQueueCounts"),
+        uploadMigration: document.getElementById("uploadMigration"),
+        uploadQueueErrors: document.getElementById("uploadQueueErrors"),
+        viewer: document.getElementById("imageViewer"),
+        viewerTitle: document.getElementById("viewerTitle"),
+        viewerStage: document.getElementById("viewerStage"),
+        viewerImage: document.getElementById("viewerImage"),
+        viewerZoomOut: document.getElementById("viewerZoomOut"),
+        viewerZoomReset: document.getElementById("viewerZoomReset"),
+        viewerZoomIn: document.getElementById("viewerZoomIn"),
+        viewerOpenRaw: document.getElementById("viewerOpenRaw"),
+        viewerClose: document.getElementById("viewerClose")
+      };
+
+      const app = {
+        workspaces: [],
+        nextWindowNumber: 1,
+        providers: { gpt: false, gemini: false },
+        viewer: {
+          src: "",
+          scale: 1,
+          fitScale: 1,
+          x: 0,
+          y: 0,
+          dragging: false,
+          lastX: 0,
+          lastY: 0
+        }
+      };
+
+      function safeJsonParse(value, fallback) {
+        try {
+          return value ? JSON.parse(value) : fallback;
+        } catch (_) {
+          return fallback;
+        }
+      }
+
+      function uid() {
+        if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+        return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+      }
+
+      function clearStoredApiKeys() {
+        KEY_SETTINGS_KEYS.forEach((key) => {
+          const saved = safeJsonParse(localStorage.getItem(key), {});
+          let changed = false;
+          ["apiKey", "gptApiKey", "geminiApiKey", "persistKey"].forEach((field) => {
+            if (Object.prototype.hasOwnProperty.call(saved, field)) {
+              delete saved[field];
+              changed = true;
+            }
+          });
+          if (changed) localStorage.setItem(key, JSON.stringify(saved));
+        });
+        KEY_SESSION_KEYS.forEach((key) => sessionStorage.removeItem(key));
+      }
+
+      function redirectToLogin() {
+        const returnTo = location.pathname + location.search;
+        location.assign("/?returnTo=" + encodeURIComponent(returnTo));
+      }
+
+      function handleUnauthorized(response, payload) {
+        const code = payload && payload.error && payload.error.code;
+        if (response.status === 401 && code === "AUTH_REQUIRED") {
+          redirectToLogin();
+          throw new Error("登录会话已失效");
+        }
+      }
+
+      async function loadRuntimeConfig() {
+        const response = await fetch("/api/runtime/config", { cache: "no-store" });
+        const config = await response.json().catch(() => ({}));
+        handleUnauthorized(response, config);
+        if (!response.ok) throw new Error("无法读取服务端配置");
+        app.providers.gpt = Boolean(config.providers && config.providers.gpt);
+        app.providers.gemini = Boolean(config.providers && config.providers.gemini);
+        [["gpt", els.gptConfigured, els.testGpt], ["gemini", els.geminiConfigured, els.testGemini]]
+          .forEach(([provider, state, button]) => {
+            const configured = app.providers[provider];
+            state.textContent = configured ? "服务端已配置" : "服务端未配置";
+            state.classList.toggle("ok", configured);
+            state.classList.toggle("err", !configured);
+            button.disabled = !configured;
+            setProviderStatus(provider, configured ? "等待连接测试" : "服务端未配置", configured ? "" : "err");
+          });
+      }
+
+      function setGlobalStatus(message, kind) {
+        els.status.textContent = message;
+        els.status.style.color = kind === "err" ? "var(--danger)" : kind === "ok" ? "var(--ok)" : "var(--muted)";
+      }
+
+      function setProviderStatus(provider, message, kind) {
+        const node = provider === "gemini" ? els.geminiConnection : els.gptConnection;
+        node.textContent = message;
+        node.classList.toggle("ok", kind === "ok");
+        node.classList.toggle("err", kind === "err");
+      }
+
+      function showDiagnostic(message) {
+        if (!message) {
+          els.diagnostic.classList.remove("show");
+          els.diagnostic.textContent = "";
+          return;
+        }
+        els.diagnostic.innerHTML = message;
+        els.diagnostic.classList.add("show");
+      }
+
+      function corsMessage() {
+        return "请通过本地工作台服务访问此页面，并确认代理服务仍在运行。";
+      }
+
+      function makeWorkspace(seed) {
+        const workspace = {
+          id: uid(),
+          title: seed && seed.title ? seed.title : "窗口 " + app.nextWindowNumber++,
+          mode: seed && seed.mode ? seed.mode : "text",
+          prompt: seed && seed.prompt ? seed.prompt : "",
+          size: seed && seed.size ? seed.size : "auto",
+          count: seed && seed.count ? seed.count : "1",
+          model: seed && seed.model === GEMINI_MODEL ? GEMINI_MODEL : GPT_MODEL,
+          aspectRatio: seed && seed.aspectRatio ? seed.aspectRatio : "1:1",
+          imageSize: seed && seed.imageSize ? seed.imageSize : "1K",
+          editImage: seed && seed.editImage ? seed.editImage : null,
+          results: [],
+          controller: null,
+          busy: false,
+          startTime: null,
+          nodes: {}
+        };
+        app.workspaces.push(workspace);
+        renderWorkspace(workspace);
+        return workspace;
+      }
+
+      function renderWorkspace(workspace) {
+        const fragment = els.template.content.cloneNode(true);
+        const root = fragment.querySelector(".workspace");
+        const nodes = {
+          root,
+          title: fragment.querySelector(".workspace-title"),
+          duplicate: fragment.querySelector(".duplicate-btn"),
+          clear: fragment.querySelector(".clear-btn"),
+          remove: fragment.querySelector(".remove-btn"),
+          modeButtons: Array.from(fragment.querySelectorAll(".mode-btn")),
+          prompt: fragment.querySelector(".prompt-input"),
+          size: fragment.querySelector(".size-select"),
+          aspectRatio: fragment.querySelector(".aspect-ratio-select"),
+          imageSize: fragment.querySelector(".image-size-select"),
+          gptControls: Array.from(fragment.querySelectorAll(".gpt-control")),
+          geminiControls: Array.from(fragment.querySelectorAll(".gemini-control")),
+          count: fragment.querySelector(".count-select"),
+          model: fragment.querySelector(".model-select"),
+          file: fragment.querySelector(".image-file-input"),
+          preview: fragment.querySelector(".edit-preview"),
+          fileLabel: fragment.querySelector(".edit-file-label"),
+          status: fragment.querySelector(".workspace-status"),
+          cancel: fragment.querySelector(".cancel-btn"),
+          run: fragment.querySelector(".run-btn"),
+          results: fragment.querySelector(".results")
+        };
+        workspace.nodes = nodes;
+
+        nodes.root.dataset.id = workspace.id;
+        nodes.title.value = workspace.title;
+        nodes.prompt.value = workspace.prompt;
+        nodes.size.value = workspace.size;
+        nodes.aspectRatio.value = workspace.aspectRatio;
+        nodes.imageSize.value = workspace.imageSize;
+        nodes.count.value = workspace.count;
+        nodes.model.value = workspace.model;
+
+        nodes.title.addEventListener("input", () => {
+          workspace.title = nodes.title.value.trim() || workspace.title;
+        });
+        nodes.prompt.addEventListener("input", () => {
+          workspace.prompt = nodes.prompt.value;
+        });
+        nodes.size.addEventListener("change", () => {
+          workspace.size = nodes.size.value;
+        });
+        nodes.aspectRatio.addEventListener("change", () => {
+          workspace.aspectRatio = nodes.aspectRatio.value;
+        });
+        nodes.imageSize.addEventListener("change", () => {
+          workspace.imageSize = nodes.imageSize.value;
+        });
+        nodes.count.addEventListener("change", () => {
+          workspace.count = nodes.count.value;
+        });
+        nodes.model.addEventListener("change", () => {
+          setModel(workspace, nodes.model.value);
+        });
+        nodes.modeButtons.forEach((button) => {
+          button.addEventListener("click", () => setMode(workspace, button.dataset.mode));
+        });
+        nodes.file.addEventListener("change", async () => {
+          const file = nodes.file.files && nodes.file.files[0];
+          if (!file) return;
+          await setEditImage(workspace, file, file.name);
+        });
+        nodes.preview.addEventListener("click", () => {
+          if (workspace.editImage && workspace.editImage.dataUrl) {
+            openImageViewer(workspace.editImage.dataUrl, workspace.editImage.name || "二创输入图");
+          } else {
+            // 点击占位符时触发文件选择
+            nodes.file.click();
+          }
+        });
+
+        // 添加粘贴图片功能
+        const editInputArea = nodes.root.querySelector(".edit-input");
+        if (editInputArea) {
+          editInputArea.addEventListener("paste", async (event) => {
+            const items = event.clipboardData?.items;
+            if (!items) return;
+
+            for (const item of items) {
+              if (item.type.startsWith("image/")) {
+                event.preventDefault();
+                const file = item.getAsFile();
+                if (file) {
+                  await setEditImage(workspace, file, "pasted-image.png");
+                  setWorkspaceStatus(workspace, "已粘贴图片", "ok");
+                }
+                break;
+              }
+            }
+          });
+
+          // 让区域可以接收焦点以便粘贴
+          editInputArea.setAttribute("tabindex", "0");
+        }
+
+        nodes.run.addEventListener("click", () => runWorkspace(workspace));
+        nodes.cancel.addEventListener("click", () => cancelWorkspace(workspace));
+        nodes.remove.addEventListener("click", () => removeWorkspace(workspace));
+        nodes.clear.addEventListener("click", () => {
+          workspace.results = [];
+          renderResults(workspace);
+          setWorkspaceStatus(workspace, "结果已清空");
+        });
+        nodes.duplicate.addEventListener("click", () => {
+          makeWorkspace({
+            title: workspace.title + " 副本",
+            mode: workspace.mode,
+            prompt: workspace.prompt,
+            size: workspace.size,
+            aspectRatio: workspace.aspectRatio,
+            imageSize: workspace.imageSize,
+            count: workspace.count,
+            model: workspace.model,
+            editImage: workspace.editImage
+          });
+        });
+
+        els.grid.appendChild(fragment);
+        setModel(workspace, workspace.model);
+        refreshEditPreview(workspace);
+        renderResults(workspace);
+      }
+
+      function setMode(workspace, mode) {
+        if (mode === "edit" && workspace.model === GEMINI_MODEL) {
+          setWorkspaceStatus(workspace, "Gemini 仅支持文生图；切回 GPT 后可继续使用已保留的输入图。", "err");
+          return;
+        }
+        workspace.mode = mode;
+        workspace.nodes.root.classList.toggle("edit-mode", mode === "edit");
+        workspace.nodes.modeButtons.forEach((button) => {
+          button.classList.toggle("active", button.dataset.mode === mode);
+          if (button.dataset.mode === "edit") {
+            button.disabled = workspace.model === GEMINI_MODEL;
+            button.title = workspace.model === GEMINI_MODEL ? "Gemini 仅支持文生图" : "";
+          }
+        });
+        workspace.nodes.run.textContent = mode === "edit" ? "开始图生图" : "开始生成";
+      }
+
+      function setWorkspaceStatus(workspace, message, kind) {
+        workspace.nodes.status.textContent = message;
+        workspace.nodes.status.classList.toggle("ok", kind === "ok");
+        workspace.nodes.status.classList.toggle("err", kind === "err");
+      }
+
+      function setModel(workspace, model) {
+        workspace.model = model === GEMINI_MODEL ? GEMINI_MODEL : GPT_MODEL;
+        workspace.nodes.model.value = workspace.model;
+        const isGemini = workspace.model === GEMINI_MODEL;
+        workspace.nodes.gptControls.forEach((control) => {
+          const field = control.closest("label");
+          if (field) field.hidden = isGemini;
+        });
+        workspace.nodes.geminiControls.forEach((field) => {
+          field.hidden = !isGemini;
+        });
+        if (isGemini) workspace.mode = "text";
+        setMode(workspace, workspace.mode);
+      }
+
+      function setBusy(workspace, busy) {
+        workspace.busy = busy;
+        workspace.nodes.run.disabled = busy;
+        workspace.nodes.cancel.disabled = !busy;
+        workspace.nodes.root.style.opacity = busy ? ".88" : "1";
+      }
+
+      function removeWorkspace(workspace) {
+        if (workspace.busy) cancelWorkspace(workspace);
+        if (app.workspaces.length === 1) {
+          setWorkspaceStatus(workspace, "至少保留一个窗口", "err");
+          return;
+        }
+        app.workspaces = app.workspaces.filter((item) => item.id !== workspace.id);
+        workspace.nodes.root.remove();
+      }
+
+      function cancelWorkspace(workspace) {
+        if (workspace.controller) workspace.controller.abort();
+      }
+
+      async function setEditImage(workspace, blobLike, name) {
+        if (workspace.model === GEMINI_MODEL) {
+          setWorkspaceStatus(workspace, "Gemini 仅支持文生图；切回 GPT 后可添加输入图。", "err");
+          return;
+        }
+        const blob = blobLike instanceof Blob ? blobLike : new Blob([blobLike]);
+        const fileName = name || "input-image.png";
+        const file = blobLike instanceof File ? blobLike : new File([blob], fileName, { type: blob.type || "image/png" });
+        const dataUrl = await blobToDataUrl(blob);
+        workspace.editImage = {
+          file,
+          blob,
+          dataUrl,
+          name: fileName,
+          type: blob.type || "image/png"
+        };
+        refreshEditPreview(workspace);
+        setMode(workspace, "edit");
+        setWorkspaceStatus(workspace, "二创输入已就绪", "ok");
+      }
+
+      function refreshEditPreview(workspace) {
+        const editImage = workspace.editImage;
+        if (editImage && editImage.dataUrl) {
+          workspace.nodes.preview.src = editImage.dataUrl;
+          workspace.nodes.preview.style.display = "block";
+          workspace.nodes.fileLabel.textContent = editImage.name || "已选择图片";
+        } else {
+          workspace.nodes.preview.removeAttribute("src");
+          workspace.nodes.preview.style.display = "flex";
+          workspace.nodes.fileLabel.textContent = "未选择图片";
+        }
+      }
+
+      async function runWorkspace(workspace) {
+        const prompt = workspace.nodes.prompt.value.trim();
+        workspace.prompt = prompt;
+        workspace.size = workspace.nodes.size.value;
+        workspace.aspectRatio = workspace.nodes.aspectRatio.value;
+        workspace.imageSize = workspace.nodes.imageSize.value;
+        workspace.count = workspace.nodes.count.value;
+        setModel(workspace, workspace.nodes.model.value);
+        const provider = workspace.model === GEMINI_MODEL ? "gemini" : "gpt";
+        showDiagnostic("");
+
+        if (!prompt) {
+          setWorkspaceStatus(workspace, "请填写 prompt", "err");
+          return;
+        }
+        if (workspace.mode === "edit" && !workspace.editImage) {
+          setWorkspaceStatus(workspace, "请先上传或选择一张二创输入图", "err");
+          return;
+        }
+        if (!app.providers[provider]) {
+          setWorkspaceStatus(workspace, "该模型的服务端密钥未配置", "err");
+          return;
+        }
+
+        workspace.controller = new AbortController();
+        workspace.startTime = Date.now();
+        setBusy(workspace, true);
+        setWorkspaceStatus(workspace, workspace.model === GEMINI_MODEL
+          ? "正在提交 Gemini 文生图请求..."
+          : (workspace.mode === "edit" ? "正在提交图生图请求..." : "正在提交生图请求..."));
+
+        try {
+          const results = await runImageBatch(workspace, workspace.controller.signal);
+          if (!results.length) {
+            throw new Error("接口返回成功，但没有找到可显示的图片字段。");
+          }
+          const elapsed = ((Date.now() - workspace.startTime) / 1000).toFixed(1);
+          setWorkspaceStatus(workspace, "完成：" + results.length + " 张图片，耗时 " + elapsed + " 秒", "ok");
+          setGlobalStatus("最近一次请求成功：" + workspace.title + "，耗时 " + elapsed + " 秒", "ok");
+        } catch (error) {
+          const info = explainError(error);
+          setWorkspaceStatus(workspace, info.short, "err");
+          setGlobalStatus(info.short, "err");
+          if (info.diagnostic) showDiagnostic(info.diagnostic);
+        } finally {
+          workspace.controller = null;
+          workspace.startTime = null;
+          setBusy(workspace, false);
+        }
+      }
+
+      async function runImageBatch(workspace, signal) {
+        const requested = Math.max(1, Math.min(4, Number(workspace.count) || 1));
+        const allResults = [];
+        let completed = 0;
+        setWorkspaceStatus(workspace, "并发生成中 0 / " + requested + "...");
+
+        const tasks = Array.from({ length: requested }, async (_, index) => {
+          if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+          const json = workspace.model === GEMINI_MODEL
+            ? await callGeminiGeneration(workspace, signal)
+            : (workspace.mode === "edit"
+              ? await callEdit(workspace, signal)
+              : await callGeneration(workspace, signal));
+          const results = await extractResults(json, workspace);
+          allResults.push(...results);
+          completed += 1;
+          if (results.length) {
+            workspace.results = results.concat(workspace.results);
+            renderResults(workspace);
+          }
+          setWorkspaceStatus(workspace, "并发生成中 " + completed + " / " + requested + "...");
+          return results;
+        });
+
+        await Promise.all(tasks);
+        return allResults;
+      }
+
+      async function callGeneration(workspace, signal) {
+        const body = {
+          model: workspace.model,
+          prompt: workspace.prompt,
+          size: workspace.size,
+          n: 1
+        };
+        return fetchJson("gpt", "/images/generations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body),
+          signal
+        });
+      }
+
+      async function callEdit(workspace, signal) {
+        const form = new FormData();
+        form.append("model", workspace.model);
+        form.append("prompt", workspace.prompt);
+        form.append("size", workspace.size);
+        form.append("n", "1");
+        form.append("image", workspace.editImage.file, workspace.editImage.name || "input-image.png");
+        return fetchJson("gpt", "/images/edits", {
+          method: "POST",
+          body: form,
+          signal
+        });
+      }
+
+      async function callGeminiGeneration(workspace, signal) {
+        return fetchJson("gemini", "/v1beta/models/" + GEMINI_MODEL + ":generateContent", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: workspace.prompt }] }],
+            generationConfig: {
+              responseModalities: ["IMAGE"],
+              imageConfig: {
+                aspectRatio: workspace.aspectRatio,
+                imageSize: workspace.imageSize
+              }
+            }
+          }),
+          signal
+        });
+      }
+
+      async function fetchJson(provider, path, options) {
+        const url = PROXY_BASE_URL + "/" + provider + path;
+        let response;
+        try {
+          response = await fetch(url, options);
+        } catch (error) {
+          throw markNetworkError(error);
+        }
+
+        const text = await response.text();
+        const json = safeJsonParse(text, null);
+        handleUnauthorized(response, json);
+        if (!response.ok) {
+          const message = json && (json.error && (json.error.message || json.error.code) || json.message)
+            ? (json.error && (json.error.message || json.error.code) || json.message)
+            : text || response.statusText || "HTTP " + response.status;
+          const error = new Error(message);
+          error.status = response.status;
+          error.payload = json || text;
+          throw error;
+        }
+        return json || {};
+      }
+
+      async function localJson(path, options) {
+        const response = await fetch(LOCAL_API_BASE + path, options);
+        const text = await response.text();
+        const json = safeJsonParse(text, null);
+        handleUnauthorized(response, json);
+        if (!response.ok) {
+          throw new Error(json && (json.error || json.message) || text || "本地服务请求失败：HTTP " + response.status);
+        }
+        return json || {};
+      }
+
+      function applyGalleryRecord(result, record) {
+        if (!record) return false;
+        const previous = [result.remoteUrl, result.uploadStatus, result.uploadAttempts, result.nextRetryAt, result.uploadError, result.thumbnailUrl, result.thumbnailStatus, result.thumbnailReady].join("|");
+        result.galleryId = record.id;
+        result.objectUrl = LOCAL_API_BASE + "/gallery/" + encodeURIComponent(record.id) + "/content";
+        result.remoteUrl = record.remoteUrl || "";
+        result.thumbnailUrl = record.thumbnailUrl || "";
+        result.thumbnailStatus = record.thumbnailStatus || "pending";
+        result.thumbnailAttempts = Number(record.thumbnailAttempts || 0);
+        result.thumbnailNextRetryAt = record.thumbnailNextRetryAt || null;
+        result.thumbnailError = record.thumbnailLastUploadError || "";
+        result.thumbnailReady = Boolean(record.thumbnailReady);
+        result.thumbnailObjectUrl = result.thumbnailReady ? LOCAL_API_BASE + "/gallery/" + encodeURIComponent(record.id) + "/thumbnail" : "";
+        result.mime = record.mime || result.mime || (result.blob && result.blob.type) || "image/png";
+        result.uploadStatus = record.uploadStatus || "pending";
+        result.uploadAttempts = Number(record.uploadAttempts || 0);
+        result.nextRetryAt = record.nextRetryAt || null;
+        result.uploadError = record.lastUploadError || "";
+        if (record.createdAt) result.createdAt = new Date(record.createdAt);
+        const current = [result.remoteUrl, result.uploadStatus, result.uploadAttempts, result.nextRetryAt, result.uploadError, result.thumbnailUrl, result.thumbnailStatus, result.thumbnailReady].join("|");
+        return previous !== current;
+      }
+
+      async function persistGeneratedResult(workspace, result) {
+        try {
+          const dataUrl = result.dataUrl || (result.blob ? await blobToDataUrl(result.blob) : "");
+          const commaIndex = dataUrl.indexOf(",");
+          const blob = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : "";
+          const originalObjectUrl = result.objectUrl;
+          const response = await localJson("/gallery", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: result.id,
+              workspaceId: workspace.id,
+              workspaceTitle: workspace.title,
+              prompt: result.prompt,
+              revisedPrompt: result.revisedPrompt,
+              model: workspace.model,
+              size: workspace.model === GEMINI_MODEL
+                ? workspace.imageSize + " · " + workspace.aspectRatio
+                : workspace.size,
+              mode: workspace.model === GEMINI_MODEL ? "text" : workspace.mode,
+              blob,
+              mime: result.mime || (result.blob && result.blob.type) || "image/png",
+              url: result.url || "",
+              sourceDataUrl: workspace.mode === "edit" && workspace.editImage ? workspace.editImage.dataUrl : null,
+              createdAt: result.createdAt.getTime()
+            })
+          });
+          applyGalleryRecord(result, response.record);
+          if (originalObjectUrl && originalObjectUrl.startsWith("blob:")) URL.revokeObjectURL(originalObjectUrl);
+        } catch (error) {
+          result.uploadStatus = "blocked";
+          result.uploadError = "无法写入本地上传队列：" + (error && error.message ? error.message : "未知错误");
+        }
+        return result;
+      }
+
+      function markNetworkError(error) {
+        error.isNetwork = true;
+        return error;
+      }
+
+      function explainError(error) {
+        if (error && error.name === "AbortError") {
+          return { short: "请求已取消" };
+        }
+        if (error && error.isNetwork) {
+          return {
+            short: "网络或跨域请求失败",
+            diagnostic: corsMessage()
+          };
+        }
+        if (error && (error.status === 401 || error.status === 403)) {
+          return {
+            short: "认证失败或接口拒绝：" + (error.message || error.status),
+            diagnostic: "如果 key 确认可用但浏览器没有拿到接口响应，仍可能是 CORS 预检被拒绝。"
+          };
+        }
+        if (error && error.status) {
+          return { short: "接口错误 " + error.status + "：" + (error.message || "请求失败") };
+        }
+        return { short: error && error.message ? error.message : "未知错误" };
+      }
+
+      async function extractResults(json, workspace) {
+        const items = [];
+        if (workspace.model === GEMINI_MODEL) {
+          (json.candidates || []).forEach((candidate) => {
+            const parts = candidate && candidate.content && candidate.content.parts;
+            (Array.isArray(parts) ? parts : []).forEach((part) => {
+              const inline = part.inlineData || part.inline_data;
+              if (inline && inline.data) {
+                items.push({ b64_json: inline.data, mime_type: inline.mimeType || inline.mime_type || "image/png" });
+              }
+            });
+          });
+        } else {
+          if (Array.isArray(json.data)) items.push(...json.data);
+          if (Array.isArray(json.output)) items.push(...json.output);
+          if (json.b64_json || json.url) items.push(json);
+        }
+
+        const results = [];
+        for (const item of items) {
+          const b64 = item.b64_json || item.image_base64 || item.base64 || item.result;
+          const url = item.url || item.image_url || item.uri;
+          const revisedPrompt = item.revised_prompt || item.prompt || "";
+          if (b64) {
+            const mime = item.mime_type || item.mime || "image/png";
+            const dataUrl = String(b64).startsWith("data:")
+              ? b64
+              : "data:" + mime + ";base64," + b64;
+            const blob = await dataUrlToBlob(dataUrl);
+            const result = makeResult({ blob, dataUrl, mime, prompt: workspace.prompt, revisedPrompt, source: "base64" });
+            results.push(await persistGeneratedResult(workspace, result));
+          } else if (url) {
+            const result = makeResult({ url, prompt: workspace.prompt, revisedPrompt, source: "url" });
+            try {
+              const response = await fetch(url);
+              if (response.ok) {
+                result.blob = await response.blob();
+                result.mime = result.blob.type || item.mime_type || item.mime || "image/png";
+                result.dataUrl = await blobToDataUrl(result.blob);
+                result.objectUrl = URL.createObjectURL(result.blob);
+              }
+            } catch (_) {
+              result.copyNote = "图片 URL 可显示，但浏览器可能阻止复制 Blob。";
+            }
+            results.push(await persistGeneratedResult(workspace, result));
+          }
+        }
+        return results;
+      }
+
+      function makeResult(input) {
+        const id = uid();
+        const blob = input.blob || null;
+        return {
+          id,
+          blob,
+          dataUrl: input.dataUrl || "",
+          objectUrl: blob ? URL.createObjectURL(blob) : (input.objectUrl || ""),
+          url: input.url || "",
+          remoteUrl: "",
+          thumbnailUrl: "",
+          thumbnailObjectUrl: "",
+          thumbnailStatus: "pending",
+          thumbnailAttempts: 0,
+          thumbnailNextRetryAt: null,
+          thumbnailError: "",
+          thumbnailReady: false,
+          mime: input.mime || (blob && blob.type) || "image/png",
+          uploadStatus: "pending",
+          uploadAttempts: 0,
+          nextRetryAt: null,
+          uploadError: "",
+          prompt: input.prompt || "",
+          revisedPrompt: input.revisedPrompt || "",
+          source: input.source || "",
+          createdAt: new Date()
+        };
+      }
+
+      function renderResults(workspace) {
+        const container = workspace.nodes.results;
+        container.innerHTML = "";
+        if (!workspace.results.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.textContent = "暂无结果";
+          container.appendChild(empty);
+          return;
+        }
+
+        workspace.results.forEach((result, index) => {
+          const card = document.createElement("div");
+          card.className = "result";
+
+          const image = document.createElement("img");
+          image.alt = result.revisedPrompt || result.prompt || "生成图片";
+          if (result.thumbnailObjectUrl) image.src = result.thumbnailObjectUrl;
+          else image.className = "thumbnail-pending";
+          image.addEventListener("click", () => {
+            openImageViewer(result.objectUrl || result.remoteUrl || result.url, result.revisedPrompt || result.prompt || "生成图片");
+          });
+          card.appendChild(image);
+
+          const meta = document.createElement("div");
+          meta.className = "result-meta";
+
+          const title = document.createElement("div");
+          title.className = "result-title";
+          title.title = result.revisedPrompt || result.prompt || "";
+          title.textContent = "#" + (workspace.results.length - index) + " · " + formatTime(result.createdAt);
+          meta.appendChild(title);
+
+          const uploadStatus = document.createElement("div");
+          uploadStatus.className = "result-upload-status " + (result.uploadStatus || "pending");
+          uploadStatus.title = result.uploadError || "";
+          uploadStatus.textContent = uploadStatusText(result);
+          meta.appendChild(uploadStatus);
+
+          const actions = document.createElement("div");
+          actions.className = "result-actions";
+          actions.appendChild(makeAction("复制图片链接", () => copyRemoteLink(result, workspace)));
+          actions.appendChild(makeDownload(result));
+          actions.appendChild(makeAction("二创", () => useResultForEdit(result, workspace)));
+          actions.appendChild(makeAction("新窗口", () => continueInNewWindow(result, workspace)));
+          meta.appendChild(actions);
+
+          card.appendChild(meta);
+          container.appendChild(card);
+        });
+      }
+
+      function makeAction(label, handler) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        button.addEventListener("click", handler);
+        return button;
+      }
+
+      function makeDownload(result) {
+        const link = document.createElement("a");
+        link.href = result.objectUrl || result.dataUrl || result.url;
+        const type = result.mime || result.blob && result.blob.type || (result.dataUrl.match(/^data:([^;]+)/) || [])[1] || "image/png";
+        const extension = type === "image/jpeg" ? ".jpg" : type === "image/webp" ? ".webp" : ".png";
+        link.download = "lucen-" + result.id.slice(0, 8) + extension;
+        link.textContent = "下载";
+        return link;
+      }
+
+      function uploadStatusText(result) {
+        if (result.thumbnailStatus && result.thumbnailStatus !== "succeeded") {
+          const thumbLabels = {
+            pending: "缩略图排队",
+            uploading: "缩略图上传中",
+            retry_wait: "缩略图等待重试",
+            blocked: "缩略图受阻",
+            canceled: "缩略图已取消"
+          };
+          return thumbLabels[result.thumbnailStatus] || "缩略图排队";
+        }
+        const labels = {
+          pending: "等待上传",
+          uploading: "正在上传",
+          retry_wait: "等待重试",
+          blocked: "上传受阻",
+          succeeded: "Remit 已验证",
+          canceled: "已取消"
+        };
+        return labels[result.uploadStatus] || "等待上传";
+      }
+
+      async function copyRemoteLink(result, workspace) {
+        if (!result.remoteUrl) {
+          setWorkspaceStatus(workspace, "Remit 上传尚未完成，完成后才能复制公开链接", "err");
+          return;
+        }
+        await copyText(result.remoteUrl, workspace);
+      }
+
+      async function useResultForEdit(result, workspace) {
+        const blob = await ensureBlob(result);
+        if (!blob) {
+          setWorkspaceStatus(workspace, "无法读取该图片 Blob，可先下载后手动上传", "err");
+          return;
+        }
+        setModel(workspace, GPT_MODEL);
+        const extension = blob.type === "image/jpeg" ? ".jpg" : blob.type === "image/webp" ? ".webp" : ".png";
+        await setEditImage(workspace, blob, "lucen-result-" + result.id.slice(0, 8) + extension);
+      }
+
+      async function continueInNewWindow(result, workspace) {
+        const newWorkspace = makeWorkspace({
+          title: "二创 " + app.nextWindowNumber,
+          mode: "edit",
+          prompt: workspace.prompt,
+          size: workspace.size,
+          count: workspace.count
+        });
+        await useResultForEdit(result, newWorkspace);
+      }
+
+      async function ensureBlob(result) {
+        if (result.blob) return result.blob;
+        if (result.dataUrl) {
+          result.blob = await dataUrlToBlob(result.dataUrl);
+          result.objectUrl = URL.createObjectURL(result.blob);
+          return result.blob;
+        }
+        if (result.galleryId && result.objectUrl) {
+          const response = await fetch(result.objectUrl);
+          if (response.ok) {
+            result.blob = await response.blob();
+            result.mime = result.blob.type || result.mime;
+            return result.blob;
+          }
+        }
+        if (result.url) {
+          const response = await fetch(result.url);
+          if (!response.ok) return null;
+          result.blob = await response.blob();
+          result.dataUrl = await blobToDataUrl(result.blob);
+          result.objectUrl = URL.createObjectURL(result.blob);
+          return result.blob;
+        }
+        return null;
+      }
+
+      async function copyText(text, workspace) {
+        if (!text) throw new Error("没有可复制的内容");
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const area = document.createElement("textarea");
+          area.value = text;
+          area.style.position = "fixed";
+          area.style.left = "-9999px";
+          document.body.appendChild(area);
+          area.focus();
+          area.select();
+          document.execCommand("copy");
+          area.remove();
+        }
+        if (workspace) setWorkspaceStatus(workspace, "已复制", "ok");
+      }
+
+      function openImageViewer(src, title) {
+        app.viewer.src = src;
+        app.viewer.scale = 1;
+        app.viewer.fitScale = 1;
+        app.viewer.x = 0;
+        app.viewer.y = 0;
+        els.viewerTitle.textContent = title || "图片预览";
+        els.viewerImage.src = src;
+        els.viewer.classList.add("open");
+        document.body.style.overflow = "hidden";
+        if (els.viewerImage.complete) fitViewerImage();
+      }
+
+      function closeImageViewer() {
+        els.viewer.classList.remove("open");
+        els.viewerImage.removeAttribute("src");
+        document.body.style.overflow = "";
+        app.viewer.dragging = false;
+        els.viewerStage.classList.remove("dragging");
+      }
+
+      function fitViewerImage() {
+        const image = els.viewerImage;
+        if (!image.naturalWidth || !image.naturalHeight) return;
+        const rect = els.viewerStage.getBoundingClientRect();
+        const padding = 34;
+        const fitX = Math.max(0.05, (rect.width - padding) / image.naturalWidth);
+        const fitY = Math.max(0.05, (rect.height - padding) / image.naturalHeight);
+        app.viewer.fitScale = Math.min(1, fitX, fitY);
+        app.viewer.scale = app.viewer.fitScale;
+        app.viewer.x = 0;
+        app.viewer.y = 0;
+        applyViewerTransform();
+      }
+
+      function applyViewerTransform() {
+        const viewer = app.viewer;
+        els.viewerImage.style.transform = "translate(calc(-50% + " + viewer.x + "px), calc(-50% + " + viewer.y + "px)) scale(" + viewer.scale + ")";
+      }
+
+      function zoomViewer(factor, centerX, centerY) {
+        const viewer = app.viewer;
+        const before = viewer.scale;
+        const next = Math.min(8, Math.max(0.05, before * factor));
+        if (next === before) return;
+
+        const rect = els.viewerStage.getBoundingClientRect();
+        const originX = typeof centerX === "number" ? centerX - rect.left - rect.width / 2 : 0;
+        const originY = typeof centerY === "number" ? centerY - rect.top - rect.height / 2 : 0;
+        viewer.x = originX - (originX - viewer.x) * (next / before);
+        viewer.y = originY - (originY - viewer.y) * (next / before);
+        viewer.scale = next;
+        applyViewerTransform();
+      }
+
+      function initImageViewer() {
+        els.viewerImage.addEventListener("load", fitViewerImage);
+        els.viewerClose.addEventListener("click", closeImageViewer);
+        els.viewerZoomReset.addEventListener("click", fitViewerImage);
+        els.viewerZoomOut.addEventListener("click", () => zoomViewer(0.8));
+        els.viewerZoomIn.addEventListener("click", () => zoomViewer(1.25));
+        els.viewerOpenRaw.addEventListener("click", () => {
+          if (app.viewer.src) window.open(app.viewer.src, "_blank", "noopener,noreferrer");
+        });
+        els.viewer.addEventListener("click", (event) => {
+          if (event.target === els.viewer) closeImageViewer();
+        });
+        els.viewerStage.addEventListener("wheel", (event) => {
+          event.preventDefault();
+          zoomViewer(event.deltaY < 0 ? 1.12 : 0.88, event.clientX, event.clientY);
+        }, { passive: false });
+        els.viewerStage.addEventListener("pointerdown", (event) => {
+          if (!els.viewer.classList.contains("open")) return;
+          app.viewer.dragging = true;
+          app.viewer.lastX = event.clientX;
+          app.viewer.lastY = event.clientY;
+          els.viewerStage.classList.add("dragging");
+          els.viewerStage.setPointerCapture(event.pointerId);
+        });
+        els.viewerStage.addEventListener("pointermove", (event) => {
+          if (!app.viewer.dragging) return;
+          app.viewer.x += event.clientX - app.viewer.lastX;
+          app.viewer.y += event.clientY - app.viewer.lastY;
+          app.viewer.lastX = event.clientX;
+          app.viewer.lastY = event.clientY;
+          applyViewerTransform();
+        });
+        els.viewerStage.addEventListener("pointerup", (event) => {
+          app.viewer.dragging = false;
+          els.viewerStage.classList.remove("dragging");
+          try {
+            els.viewerStage.releasePointerCapture(event.pointerId);
+          } catch (_) {}
+        });
+        window.addEventListener("keydown", (event) => {
+          if (!els.viewer.classList.contains("open")) return;
+          if (event.key === "Escape") closeImageViewer();
+          if (event.key === "+" || event.key === "=") zoomViewer(1.25);
+          if (event.key === "-") zoomViewer(0.8);
+          if (event.key === "0") fitViewerImage();
+        });
+        window.addEventListener("resize", () => {
+          if (els.viewer.classList.contains("open")) fitViewerImage();
+        });
+      }
+
+      function blobToDataUrl(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      async function dataUrlToBlob(dataUrl) {
+        const response = await fetch(dataUrl);
+        return response.blob();
+      }
+
+      function formatTime(date) {
+        return new Intl.DateTimeFormat("zh-CN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        }).format(date);
+      }
+
+      let uploadsRefreshing = false;
+
+      async function refreshLegacyUploads() {
+        if (uploadsRefreshing) return;
+        uploadsRefreshing = true;
+        try {
+          const summary = await localJson("/uploads?limit=80");
+          renderUploadSummary(summary);
+
+          await Promise.all(app.workspaces.map(async (workspace) => {
+            const page = await localJson("/gallery?workspaceId=" + encodeURIComponent(workspace.id) + "&limit=80");
+            const records = new Map((page.items || []).map((record) => [record.id, record]));
+            let changed = false;
+            workspace.results.forEach((result) => {
+              const record = records.get(result.galleryId || result.id);
+              if (record) changed = applyGalleryRecord(result, record) || changed;
+            });
+            if (changed) renderResults(workspace);
+          }));
+        } catch (error) {
+          els.uploadQueueState.textContent = "服务不可用";
+          els.uploadQueueCounts.textContent = error && error.message ? error.message : "无法读取上传队列";
+        } finally {
+          uploadsRefreshing = false;
+        }
+      }
+
+      function renderUploadSummary(summary) {
+        const counts = summary.counts || {};
+        const active = Number(counts.pending || 0) + Number(counts.uploading || 0) + Number(counts.retry_wait || 0);
+        const succeeded = Number(counts.succeeded || 0);
+        const blocked = Number(counts.blocked || 0);
+        const worker = summary.worker || {};
+        els.uploadQueueState.textContent = worker.enabled === false ? "已停用" : worker.running ? "上传中" : active ? "等待处理" : "空闲";
+        els.uploadQueueCounts.textContent = "处理中 " + active + " · 已完成 " + succeeded + " · 受阻 " + blocked;
+        const breakdown = summary.breakdown || {};
+        const originalBreakdown = breakdown.original || {};
+        const thumbnailBreakdown = breakdown.thumbnail || {};
+        if (breakdown.original || breakdown.thumbnail) {
+          els.uploadQueueCounts.textContent += " · 原图 " + Number(originalBreakdown.succeeded || 0) + " 完成 / " + (Number(originalBreakdown.pending || 0) + Number(originalBreakdown.uploading || 0) + Number(originalBreakdown.retry_wait || 0)) + " 待处理 · 缩略图 " + Number(thumbnailBreakdown.succeeded || 0) + " 完成 / " + (Number(thumbnailBreakdown.pending || 0) + Number(thumbnailBreakdown.uploading || 0) + Number(thumbnailBreakdown.retry_wait || 0)) + " 待处理";
+        }
+
+        const historical = summary.historical || {};
+        els.uploadMigration.textContent = historical.total
+          ? "历史迁移 " + Number(historical.succeeded || 0) + " / " + Number(historical.total || 0) + (historical.blocked ? " · 受阻 " + historical.blocked : "")
+          : "暂无历史图片需要迁移";
+
+        els.uploadQueueErrors.innerHTML = "";
+        (summary.items || [])
+          .filter((job) => job.status === "retry_wait" || job.status === "blocked")
+          .slice(0, 2)
+          .forEach((job) => {
+            const row = document.createElement("div");
+            row.className = "upload-queue-error";
+            const message = document.createElement("span");
+            message.title = job.lastError || "上传失败";
+            message.textContent = (job.workspaceTitle || "图片") + " · " + (job.variant === "thumbnail" ? "缩略图" : "原图") + "：" + (job.lastError || "等待重试");
+            const retry = document.createElement("button");
+            retry.type = "button";
+            retry.textContent = "立即重试";
+            retry.addEventListener("click", async () => {
+              retry.disabled = true;
+              try {
+                await localJson("/uploads/" + encodeURIComponent(job.galleryId) + "/retry?variant=" + encodeURIComponent(job.variant || "original"), { method: "POST" });
+                await refreshLegacyUploads();
+              } catch (error) {
+                els.uploadQueueState.textContent = error && error.message ? error.message : "重试失败";
+              } finally {
+                retry.disabled = false;
+              }
+            });
+            row.append(message, retry);
+            els.uploadQueueErrors.appendChild(row);
+          });
+      }
+
+      async function testConnection(provider) {
+        const expectedModel = provider === "gemini" ? GEMINI_MODEL : GPT_MODEL;
+        const button = provider === "gemini" ? els.testGemini : els.testGpt;
+        showDiagnostic("");
+        if (!app.providers[provider]) {
+          setProviderStatus(provider, "服务端未配置", "err");
+          return;
+        }
+        button.disabled = true;
+        setProviderStatus(provider, "正在测试...");
+        try {
+          const json = await fetchJson(provider, "/models", {
+            method: "GET"
+          });
+          const models = Array.isArray(json.data) ? json.data : [];
+          const found = models.some((model) => (typeof model === "string" ? model : model && model.id) === expectedModel);
+          if (!found) {
+            throw new Error("模型目录中未找到 " + expectedModel);
+          }
+          setProviderStatus(provider, "连接成功，已发现 " + expectedModel, "ok");
+        } catch (error) {
+          const info = explainError(error);
+          setProviderStatus(provider, info.short, "err");
+          setGlobalStatus(info.short, "err");
+          if (info.diagnostic) showDiagnostic(info.diagnostic);
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      function initFromHash() {
+        const hash = decodeURIComponent(location.hash.replace(/^#/, ""));
+        if (!hash) return null;
+        const data = safeJsonParse(hash, null);
+        if (data && typeof data === "object") {
+          history.replaceState(null, "", location.pathname + location.search);
+          return data;
+        }
+        return null;
+      }
+
+      function initEvents() {
+        initImageViewer();
+        els.newWorkspace.addEventListener("click", () => makeWorkspace());
+        els.popout.addEventListener("click", () => {
+          window.open(location.href.split("#")[0], "_blank", "noopener,noreferrer,width=1280,height=900");
+        });
+        els.testGpt.addEventListener("click", () => testConnection("gpt"));
+        els.testGemini.addEventListener("click", () => testConnection("gemini"));
+        els.logout.addEventListener("click", async () => {
+          els.logout.disabled = true;
+          try {
+            await fetch("/api/auth/logout", { method: "POST" });
+          } finally {
+            location.assign("/");
+          }
+        });
+      }
+
+      async function boot() {
+        clearStoredApiKeys();
+        initEvents();
+        const seed = initFromHash();
+
+        // 如果没有提供种子数据，创建默认窗口（不指定title，让makeWorkspace自动生成）
+        if (!seed) {
+          makeWorkspace({
+            mode: "text",
+            prompt: "",
+            size: "auto",
+            count: "1"
+          });
+        } else {
+          makeWorkspace(seed);
+        }
+
+        try {
+          await loadRuntimeConfig();
+          setGlobalStatus("服务端配置已读取，上游固定为 xixiapi.io。", "ok");
+        } catch (error) {
+          setGlobalStatus(error && error.message ? error.message : "服务端配置读取失败", "err");
+        }
+        void refreshLegacyUploads();
+        window.setInterval(refreshLegacyUploads, 5000);
+      }
+
+      void boot();
+    })();
+  </script>
+</body>
+</html>

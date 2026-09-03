@@ -1,0 +1,43 @@
+services:
+  lucen:
+    build:
+      context: .
+    image: lucen-image:local
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LUCEN_WORKBENCH_HOST: 0.0.0.0
+      LUCEN_WORKBENCH_PORT: 8787
+      LUCEN_DATA_DIR: /app/data
+      LUCEN_TRUST_PROXY: "1"
+      LUCEN_ACCESS_PASSWORD: ${LUCEN_ACCESS_PASSWORD:?set LUCEN_ACCESS_PASSWORD in .env}
+      LUCEN_SESSION_SECRET: ${LUCEN_SESSION_SECRET:?set LUCEN_SESSION_SECRET in .env}
+      LUCEN_SESSION_TTL_SECONDS: ${LUCEN_SESSION_TTL_SECONDS:-604800}
+      LUCEN_GPT_API_KEY: ${LUCEN_GPT_API_KEY:-}
+      LUCEN_GEMINI_API_KEY: ${LUCEN_GEMINI_API_KEY:-}
+    expose:
+      - "8787"
+    volumes:
+      - lucen-data:/app/data
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      lucen:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  lucen-data:
+  caddy-data:
+  caddy-config:
