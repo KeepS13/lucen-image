@@ -652,7 +652,16 @@ function hasValidOrigin(req) {
   const origin = String(req.headers.origin || "").trim();
   if (!origin) return true;
   try {
-    return new URL(origin).origin === new URL(requestOrigin(req)).origin;
+    const parsedOrigin = new URL(origin);
+    const parsedRequestOrigin = new URL(requestOrigin(req));
+    if (parsedOrigin.origin === parsedRequestOrigin.origin) return true;
+
+    return (
+      TRUST_PROXY &&
+      !firstForwardedValue(req.headers["x-forwarded-proto"]) &&
+      ["http:", "https:"].includes(parsedOrigin.protocol) &&
+      parsedOrigin.host === parsedRequestOrigin.host
+    );
   } catch (_) {
     return false;
   }

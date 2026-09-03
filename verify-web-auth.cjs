@@ -52,6 +52,35 @@ function requestOptions(method, baseUrl, cookie, body) {
   return { method, headers, body: body === undefined ? undefined : JSON.stringify(body) };
 }
 
+function proxyLogin(baseUrl, host, origin) {
+  const payload = JSON.stringify({ password: "integration-password" });
+  return new Promise((resolve, reject) => {
+    const request = http.request(
+      baseUrl + "/api/auth/login",
+      {
+        method: "POST",
+        headers: {
+          Host: host,
+          Origin: origin,
+          "Sec-Fetch-Site": "same-origin",
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(payload),
+        },
+      },
+      (response) => {
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => {
+          const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          resolve({ status: response.statusCode, body });
+        });
+      },
+    );
+    request.on("error", reject);
+    request.end(payload);
+  });
+}
+
 function verifyAuthPrimitives() {
   let timestamp = 1_800_000_000_000;
   const options = {
@@ -114,6 +143,7 @@ async function verifyServerIntegration() {
       LUCEN_SESSION_SECRET: "integration-secret-0123456789abcdef",
       LUCEN_GPT_API_KEY: "server-gpt-key",
       LUCEN_GEMINI_API_KEY: "server-gemini-key",
+      LUCEN_TRUST_PROXY: "1",
       LUCEN_TEST_UPSTREAM_BASE_URL: "http://127.0.0.1:" + upstreamAddress.port,
       LUCEN_DISABLE_REMIT_UPLOAD: "1",
     },
@@ -145,6 +175,16 @@ async function verifyServerIntegration() {
       ...requestOptions("POST", "https://attacker.example", "", { password: "integration-password" }),
     });
     check("跨域登录请求被拒绝", crossOriginLogin.status === 403);
+
+    const previewHost = "8787-env.monkeycode-ai.online";
+    const trustedProxyLogin = await proxyLogin(baseUrl, previewHost, "https://" + previewHost);
+    check(
+      "可信代理未转发协议时允许同 Host 的 HTTPS 登录",
+      trustedProxyLogin.status === 200 && trustedProxyLogin.body.authenticated === true,
+    );
+
+    const spoofedProxyLogin = await proxyLogin(baseUrl, previewHost, "https://attacker.example");
+    check("可信代理仍拒绝不同 Host 的 Origin", spoofedProxyLogin.status === 403);
 
     const invalidLogin = await fetch(baseUrl + "/api/auth/login", requestOptions("POST", baseUrl, "", { password: "wrong" }));
     check("错误共享密码返回 AUTH_INVALID", invalidLogin.status === 401 && (await invalidLogin.json()).error.code === "AUTH_INVALID");
