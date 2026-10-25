@@ -12,7 +12,8 @@
 
 ```bash
 npm ci
-npm run package
+# 子路径发布；根路径发布时不设置 LUCEN_BASE_PATH。
+LUCEN_BASE_PATH=/generate-image npm run package
 ```
 
 `prepack` 会先运行 `npm run build`，生成的 `.tgz` 位于 `release/`。发布包不包含 `node_modules`、`.env`、运行数据、测试文件或源码开发配置。
@@ -24,8 +25,8 @@ npm run package
 ```bash
 mkdir -p /opt/lucen/releases/2.0.0 /var/lib/lucen
 cd /opt/lucen/releases/2.0.0
-npm init -y
-npm install --omit=dev /path/to/lucen-image-workbench-2.0.0.tgz
+tar -xzf /path/to/lucen-image-workbench-2.0.0.tgz --strip-components=1
+npm install --omit=dev --no-audit --no-fund
 ```
 
 配置生产环境变量：
@@ -35,6 +36,8 @@ export NODE_ENV=production
 export LUCEN_WORKBENCH_HOST=127.0.0.1
 export LUCEN_WORKBENCH_PORT=8787
 export LUCEN_DATA_DIR=/var/lib/lucen
+export LUCEN_BASE_PATH=/generate-image
+export LUCEN_COOKIE_SECURE=0
 export LUCEN_ACCESS_PASSWORD='replace-with-a-strong-shared-password'
 export LUCEN_SESSION_SECRET='replace-with-at-least-32-random-bytes'
 export LUCEN_GPT_API_KEY='your-gpt-key'
@@ -47,10 +50,10 @@ export LUCEN_GEMINI_API_KEY='your-gemini-key'
 
 ```bash
 npm start --prefix /opt/lucen/releases/2.0.0
-curl --fail http://127.0.0.1:8787/__health
+curl --fail http://127.0.0.1:8787/generate-image/__health
 ```
 
-预期健康检查返回 `{ "ok": true }`。将现有 HTTPS 反向代理的上游配置为 `http://127.0.0.1:8787`。若使用可信反向代理，设置 `LUCEN_TRUST_PROXY=1`；不要让未受信任的客户端直接访问应用端口。
+预期健康检查返回 `{ "ok": true }`。将现有反向代理的 `/generate-image/` 前缀原样转发到 `http://127.0.0.1:8787`。`LUCEN_COOKIE_SECURE=0` 仅用于明确的 HTTP 部署；HTTPS 部署应删除该覆盖或设为 `1`。若使用可信反向代理，设置 `LUCEN_TRUST_PROXY=1`；不要让未受信任的客户端直接访问应用端口。
 
 ## systemd 示例
 
@@ -120,7 +123,7 @@ Gemini: LUCEN-CC-GEMINI-3.1-FLASH-IMAGE
 
 ## 登录与安全
 
-- 会话 Cookie 使用 HMAC-SHA256 签名、`HttpOnly`、`SameSite=Strict`，生产环境带 `Secure`，默认 7 天过期。
+- 会话 Cookie 使用 HMAC-SHA256 签名、`HttpOnly`、`SameSite=Strict`，生产环境默认带 `Secure`；仅显式设置 `LUCEN_COOKIE_SECURE=0` 时用于 HTTP。Cookie Path 限定在 `LUCEN_BASE_PATH`，默认 7 天过期。HSTS 仅在 Secure Cookie 模式发送。HTTP 会以明文传输登录密码和会话 Cookie，只应短期用于可信网络；建议尽快启用 HTTPS 并将 `LUCEN_COOKIE_SECURE` 设为 `1`。
 - 同一 IP 在 15 分钟内允许 5 次错误密码，第 6 次开始返回 `429`。
 - `/api/local/*`、`/api/lucen/*` 和 `/legacy` 需要会话；公开健康检查只返回 `{ "ok": true }`。
 - 修改 `LUCEN_SESSION_SECRET` 会立即使所有已有会话失效。

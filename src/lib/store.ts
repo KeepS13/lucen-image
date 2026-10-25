@@ -294,6 +294,10 @@ export const useApp = create<AppStore>()((set, get) => {
     image: ExtractedImage,
     sourceDataUrl?: string,
   ): Promise<ResultItem> {
+    if (image.storedRecord) {
+      get().bumpGallery();
+      return recordToItem(image.storedRecord);
+    }
     let blobBase64: string | undefined;
     let url = image.url;
     if (image.b64) {
@@ -765,7 +769,10 @@ export const useApp = create<AppStore>()((set, get) => {
         setRun(id, { message: "该模型的服务端密钥未配置", kind: "err" });
         return;
       }
-      const ctx: ApiContext = { provider };
+      const ctx: ApiContext = {
+        provider,
+        galleryContext: { workspaceId: workspace.id, workspaceTitle: workspace.title.slice(0, 256) },
+      };
       const files = inputEntries.map(
         ({ meta, entry }) =>
           new File([entry.blob], meta.name, { type: meta.type || "image/png" }),

@@ -14,6 +14,7 @@ import {
   Target,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { legacyPath } from "../lib/basePath";
 import { dialogPop, overlayFade } from "../lib/motion";
 import { useApp } from "../lib/store";
 
@@ -103,7 +104,7 @@ export function CommandPalette() {
         id: "legacy",
         label: "打开旧版界面 (/legacy)",
         icon: <History size={15} />,
-        run: () => window.open("/legacy", "_blank", "noopener,noreferrer"),
+        run: () => window.open(legacyPath(), "_blank", "noopener,noreferrer"),
       },
     ];
     const focus: Command[] = workspaces.map((w) => ({

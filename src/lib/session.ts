@@ -1,3 +1,4 @@
+import { appPath } from "./basePath";
 import type { ImageProvider } from "./types";
 
 export interface SessionInfo {
@@ -25,7 +26,7 @@ export function notifyUnauthorized(): void {
 }
 
 export async function getSession(): Promise<SessionInfo> {
-  const response = await fetch("/api/auth/session", { cache: "no-store" });
+  const response = await fetch(appPath("/api/auth/session"), { cache: "no-store" });
   const payload = await readJson(response);
   if (!response.ok) throw new Error(errorMessage(payload, "无法读取登录状态"));
   return {
@@ -35,7 +36,7 @@ export async function getSession(): Promise<SessionInfo> {
 }
 
 export async function login(password: string): Promise<SessionInfo> {
-  const response = await fetch("/api/auth/login", {
+  const response = await fetch(appPath("/api/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
@@ -57,11 +58,11 @@ export async function login(password: string): Promise<SessionInfo> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch("/api/auth/logout", { method: "POST" });
+  await fetch(appPath("/api/auth/logout"), { method: "POST" });
 }
 
 export async function getRuntimeConfig(): Promise<RuntimeConfig> {
-  const response = await fetch("/api/runtime/config", { cache: "no-store" });
+  const response = await fetch(appPath("/api/runtime/config"), { cache: "no-store" });
   const payload = await readJson(response);
   if (!response.ok) throw new Error(errorMessage(payload, "无法读取服务配置"));
   return {

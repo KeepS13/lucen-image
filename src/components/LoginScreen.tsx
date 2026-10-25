@@ -1,5 +1,6 @@
 import { LockKeyhole, LogIn } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { legacyPath, loginPath } from "../lib/basePath";
 import { login } from "../lib/session";
 
 interface LoginScreenProps {
@@ -19,11 +20,13 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     try {
       await login(password);
       const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-      if (returnTo && /^\/legacy(?:\/|$)/.test(returnTo)) {
+      const legacy = legacyPath();
+      const returnPath = returnTo?.split(/[?#]/, 1)[0];
+      if (returnTo && [legacy, legacy + "/", legacy + "/index.html"].includes(returnPath || "")) {
         window.location.assign(returnTo);
         return;
       }
-      window.history.replaceState(null, "", window.location.pathname);
+      window.history.replaceState(null, "", loginPath());
       onAuthenticated();
     } catch (cause) {
       const authError = cause as Error & { code?: string; retryAfter?: number };

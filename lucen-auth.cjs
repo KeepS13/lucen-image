@@ -35,11 +35,21 @@ function positiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function normalizeCookiePath(value) {
+  const raw = String(value || "/").trim();
+  if (!raw.startsWith("/") || raw.includes("?") || raw.includes("#") || raw.includes(";")) {
+    throw new Error("Cookie path must be an absolute path.");
+  }
+  if (raw === "/") return "/";
+  return raw.replace(/\/+$/, "");
+}
+
 function createAuthManager(options = {}) {
   const password = String(options.password || "");
   const sessionSecret = String(options.sessionSecret || "");
   const enabled = Boolean(password && sessionSecret);
   const secureCookie = Boolean(options.secureCookie);
+  const cookiePath = normalizeCookiePath(options.cookiePath);
   const trustProxy = Boolean(options.trustProxy);
   const ttlSeconds = positiveInteger(options.ttlSeconds, DEFAULT_SESSION_TTL_SECONDS);
   const now = typeof options.now === "function" ? options.now : Date.now;
@@ -127,7 +137,7 @@ function createAuthManager(options = {}) {
   function sessionCookie(token) {
     const parts = [
       COOKIE_NAME + "=" + encodeURIComponent(token),
-      "Path=/",
+      "Path=" + cookiePath,
       "HttpOnly",
       "SameSite=Strict",
       "Max-Age=" + ttlSeconds,
@@ -139,7 +149,7 @@ function createAuthManager(options = {}) {
   function expiredCookie() {
     const parts = [
       COOKIE_NAME + "=",
-      "Path=/",
+      "Path=" + cookiePath,
       "HttpOnly",
       "SameSite=Strict",
       "Max-Age=0",

@@ -22,6 +22,7 @@ jobs:
       - run: node --check lucen-auth.cjs && node --check lucen-local-proxy.cjs && node --check local-media.cjs
       - run: npm run verify:auth
       - run: npm run verify:storage
+      - run: npm run verify:generation
       - run: npm run build
       - name: Start mock-only browser target
         run: |

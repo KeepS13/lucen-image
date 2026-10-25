@@ -3,7 +3,8 @@ const { chromium } = require("playwright-core");
 const { randomUUID } = require("crypto");
 const sharp = require("sharp");
 
-const BASE_URL = process.env.WORKBENCH_URL || "http://127.0.0.1:8787";
+const BASE_URL = (process.env.WORKBENCH_URL || "http://127.0.0.1:8787").replace(/\/$/, "");
+const BASE_PATH = process.env.LUCEN_BASE_PATH || "";
 const GPT_MODEL_IDS = [
   "gpt-image-2",
   "gpt-image-2.5",
@@ -34,6 +35,7 @@ function json(route, status, body) {
 }
 
 async function installMocks(page, options = {}) {
+  const routePath = (pathname) => BASE_PATH && pathname.startsWith(BASE_PATH + "/") ? pathname.slice(BASE_PATH.length) : pathname;
   const state = {
     authenticated: options.authenticated !== false,
     kv: new Map(),
@@ -73,7 +75,7 @@ async function installMocks(page, options = {}) {
   await page.route("**/api/local/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const path = url.pathname;
+    const path = routePath(url.pathname);
     const method = request.method();
     state.localRequests.push({ path, method });
 
@@ -207,24 +209,25 @@ async function installMocks(page, options = {}) {
   await page.route("**/api/lucen/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const provider = url.pathname.includes("/gemini/") ? "gemini" : "gpt";
+    const path = routePath(url.pathname);
+    const provider = path.includes("/gemini/") ? "gemini" : "gpt";
     const entry = {
       provider,
-      path: url.pathname,
+      path,
       method: request.method(),
       authorization: request.headers().authorization || "",
       body: request.postData() || "",
     };
     state.providerRequests.push(entry);
 
-    if (url.pathname.endsWith("/models")) {
+    if (path.endsWith("/models")) {
       const models = provider === "gemini" ? [GEMINI_MODEL] : GPT_MODEL_IDS;
       return json(route, 200, { data: models.map((id) => ({ id })) });
     }
-    if (provider === "gpt" && url.pathname.endsWith("/images/generations")) {
+    if (provider === "gpt" && path.endsWith("/images/generations")) {
       return json(route, 200, { data: [{ b64_json: PNG_BASE64, mime_type: "image/png" }] });
     }
-    if (provider === "gemini" && url.pathname.endsWith(":" + "generateContent")) {
+    if (provider === "gemini" && path.endsWith(":" + "generateContent")) {
       const variants = [
         ["image/jpeg", JPEG_BASE64],
         ["image/png", PNG_BASE64],
@@ -247,6 +250,13 @@ async function waitForWorkspace(page, selector) {
 }
 
 async function verifyGalleryStorage() {
+  const login = await fetch(BASE_URL + BASE_PATH + "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password: "browser-password" }),
+  });
+  const sessionCookie = (login.headers.get("set-cookie") || "").split(";")[0];
+  const authHeaders = sessionCookie ? { Cookie: sessionCookie } : {};
   const variants = [
     ["image/jpeg", "jpg", JPEG_BASE64],
     ["image/png", "png", PNG_BASE64],
@@ -258,9 +268,9 @@ async function verifyGalleryStorage() {
       ? (await sharp(Buffer.from(PNG_BASE64, "base64")).webp().toBuffer()).toString("base64")
       : blob;
     try {
-      const response = await fetch(BASE_URL + "/api/local/gallery", {
+      const response = await fetch(BASE_URL + BASE_PATH + "/api/local/gallery", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           id,
           workspaceId: "verify-provider",
@@ -276,9 +286,9 @@ async function verifyGalleryStorage() {
         }),
       });
       const stored = await response.json();
-      const image = await fetch(BASE_URL + "/api/local/gallery/" + id + "/content");
+      const image = await fetch(BASE_URL + BASE_PATH + "/api/local/gallery/" + id + "/content", { headers: authHeaders });
       const bytes = Buffer.from(await image.arrayBuffer());
-      const thumbnail = await fetch(BASE_URL + "/api/local/gallery/" + id + "/thumbnail");
+      const thumbnail = await fetch(BASE_URL + BASE_PATH + "/api/local/gallery/" + id + "/thumbnail", { headers: authHeaders });
       const thumbnailBytes = Buffer.from(await thumbnail.arrayBuffer());
       check(
         "本地媒体接口返回真实 " + mime,
@@ -290,7 +300,7 @@ async function verifyGalleryStorage() {
           thumbnailBytes.subarray(8, 12).toString("ascii") === "WEBP",
       );
     } finally {
-      await fetch(BASE_URL + "/api/local/gallery/" + id, { method: "DELETE" });
+      await fetch(BASE_URL + BASE_PATH + "/api/local/gallery/" + id, { method: "DELETE", headers: authHeaders });
     }
   }
 }
@@ -299,7 +309,7 @@ async function verifyLogin(browser) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   await installMocks(page, { authenticated: false, password: "browser-password" });
-  await page.goto(BASE_URL + "/", { waitUntil: "domcontentloaded" });
+  await page.goto(BASE_URL + BASE_PATH + "/", { waitUntil: "domcontentloaded" });
   await page.getByLabel("访问密码").waitFor({ state: "visible", timeout: 5000 });
   check("未登录时现代版只显示访问密码入口", (await page.locator("[data-ws]").count()) === 0);
   await page.getByLabel("访问密码").fill("wrong");
@@ -328,7 +338,7 @@ async function verifyModern(browser) {
   page.on("pageerror", (error) => errors.push(error.message));
   const state = await installMocks(page);
 
-  await page.goto(BASE_URL + "/", { waitUntil: "domcontentloaded" });
+  await page.goto(BASE_URL + BASE_PATH + "/", { waitUntil: "domcontentloaded" });
   await waitForWorkspace(page, "[data-ws]");
   const workspace = page.locator("[data-ws]").first();
 
@@ -511,7 +521,23 @@ async function verifyLegacy(browser) {
   page.on("pageerror", (error) => errors.push(error.message));
   const state = await installMocks(page, { retentionDays: 45 });
 
-  await page.goto(BASE_URL + "/legacy", { waitUntil: "domcontentloaded" });
+  if (BASE_PATH) {
+    const login = await fetch(BASE_URL + BASE_PATH + "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: "browser-password" }),
+    });
+    const setCookie = login.headers.get("set-cookie") || "";
+    const sessionCookie = setCookie.split(";")[0];
+    await page.context().addCookies([{
+      name: "lucen_session",
+      value: sessionCookie.slice(sessionCookie.indexOf("=") + 1),
+      url: BASE_URL + BASE_PATH + "/",
+      httpOnly: true,
+      sameSite: "Strict",
+    }]);
+  }
+  await page.goto(BASE_URL + BASE_PATH + "/legacy", { waitUntil: "domcontentloaded" });
   await waitForWorkspace(page, ".workspace");
   const workspace = page.locator(".workspace").first();
   await page.waitForFunction(() => document.querySelector("#storageRetentionDays")?.value === "45");

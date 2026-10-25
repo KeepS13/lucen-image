@@ -1,0 +1,25 @@
+[Unit]
+Description=Lucen Image Workbench
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lucen
+Group=lucen
+WorkingDirectory=/opt/lucen/releases/2.0.0
+EnvironmentFile=/etc/lucen/lucen.env
+ExecStart=/usr/bin/node /opt/lucen/releases/2.0.0/lucen-local-proxy.cjs
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lucen
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1333,8 +1333,13 @@
       const GPT_MODEL = GPT_MODEL_IDS[0];
       const GEMINI_MODEL = "gemini-3.1-flash-image";
       const MODEL_IDS = GPT_MODEL_IDS.concat(GEMINI_MODEL);
-      const PROXY_BASE_URL = "/api/lucen";
-      const LOCAL_API_BASE = "/api/local";
+      const BASE_PATH = (() => {
+        const match = location.pathname.match(/^(.*?)\/legacy(?:\/|$)/);
+        return match && match[1] ? match[1].replace(/\/+$/, "") : "";
+      })();
+      const appPath = (pathname) => BASE_PATH + pathname;
+      const PROXY_BASE_URL = appPath("/api/lucen");
+      const LOCAL_API_BASE = appPath("/api/local");
       const LOCAL_KEY = "lucen-image-studio-settings";
       const KEY_SETTINGS_KEYS = [LOCAL_KEY, "lucen2-settings"];
       const KEY_SESSION_KEYS = [
@@ -1421,7 +1426,7 @@
 
       function redirectToLogin() {
         const returnTo = location.pathname + location.search;
-        location.assign("/?returnTo=" + encodeURIComponent(returnTo));
+        location.assign(appPath("/") + "?returnTo=" + encodeURIComponent(returnTo));
       }
 
       function handleUnauthorized(response, payload) {
@@ -1433,7 +1438,7 @@
       }
 
       async function loadRuntimeConfig() {
-        const response = await fetch("/api/runtime/config", { cache: "no-store" });
+        const response = await fetch(appPath("/api/runtime/config"), { cache: "no-store" });
         const config = await response.json().catch(() => ({}));
         handleUnauthorized(response, config);
         if (!response.ok) throw new Error("无法读取服务端配置");
@@ -1806,6 +1811,7 @@
           n: 1
         };
         return fetchJson("gpt", "/images/generations", {
+          galleryContext: { workspaceId: workspace.id, workspaceTitle: workspace.title.slice(0, 256) },
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -1823,6 +1829,7 @@
         form.append("n", "1");
         form.append("image", workspace.editImage.file, workspace.editImage.name || "input-image.png");
         return fetchJson("gpt", "/images/edits", {
+          galleryContext: { workspaceId: workspace.id, workspaceTitle: workspace.title.slice(0, 256) },
           method: "POST",
           body: form,
           signal
@@ -1831,6 +1838,7 @@
 
       async function callGeminiGeneration(workspace, signal) {
         return fetchJson("gemini", "/v1beta/models/" + GEMINI_MODEL + ":generateContent", {
+          galleryContext: { workspaceId: workspace.id, workspaceTitle: workspace.title.slice(0, 256) },
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -1851,14 +1859,18 @@
 
       async function fetchJson(provider, path, options) {
         const url = PROXY_BASE_URL + "/" + provider + path;
-        let response;
+        const { galleryContext, ...init } = options;
+        const headers = new Headers(init.headers);
+        if (galleryContext) headers.set("X-Lucen-Gallery-Context", encodeURIComponent(JSON.stringify(galleryContext)));
+        let response, text;
         try {
-          response = await fetch(url, options);
+          response = await fetch(url, { ...init, headers });
+          text = await response.text();
         } catch (error) {
+          if (init.signal?.aborted) throw error;
+          if (galleryContext) error.code = "GENERATION_RESULT_UNCONFIRMED";
           throw markNetworkError(error);
         }
-
-        const text = await response.text();
         const json = safeJsonParse(text, null);
         handleUnauthorized(response, json);
         if (!response.ok) {
@@ -1867,6 +1879,7 @@
             : text || response.statusText || "HTTP " + response.status;
           const error = new Error(message);
           error.status = response.status;
+          error.code = json?.error?.code || (galleryContext && response.status >= 500 ? "GENERATION_RESULT_UNCONFIRMED" : "");
           error.payload = json || text;
           throw error;
         }
@@ -1943,6 +1956,9 @@
         if (error && error.name === "AbortError") {
           return { short: "请求已取消" };
         }
+        if (error?.code?.startsWith("GENERATION_")) {
+          return { short: "生成响应异常，请先检查画廊", diagnostic: "服务器可能已保存结果，请先刷新画廊确认，避免重复生成和计费。" };
+        }
         if (error && error.isNetwork) {
           return {
             short: "网络或跨域请求失败",
@@ -1962,6 +1978,14 @@
       }
 
       async function extractResults(json, workspace) {
+        if (Array.isArray(json?.lucen?.galleryRecords)) {
+          return json.lucen.galleryRecords.map(record => {
+            const result = makeResult({ prompt: record.prompt, revisedPrompt: record.revisedPrompt, mime: record.mime, source: "server" });
+            result.id = record.id;
+            applyGalleryRecord(result, record);
+            return result;
+          });
+        }
         const items = [];
         if (workspace.model === GEMINI_MODEL) {
           (json.candidates || []).forEach((candidate) => {
@@ -2423,9 +2447,9 @@
         els.logout.addEventListener("click", async () => {
           els.logout.disabled = true;
           try {
-            await fetch("/api/auth/logout", { method: "POST" });
+            await fetch(appPath("/api/auth/logout"), { method: "POST" });
           } finally {
-            location.assign("/");
+            location.assign(appPath("/"));
           }
         });
       }

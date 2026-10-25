@@ -1,9 +1,12 @@
+import { appPath } from "./basePath";
+import type { GalleryRecord } from "./db";
 import { GEMINI_MODEL } from "./models";
 import { notifyUnauthorized } from "./session";
 import type { GeminiAspectRatio, GeminiImageSize, ImageProvider } from "./types";
 
 export interface ApiContext {
   provider: ImageProvider;
+  galleryContext?: { workspaceId: string; workspaceTitle: string };
 }
 
 export class ApiError extends Error {
@@ -15,6 +18,7 @@ export class ApiError extends Error {
 }
 
 export interface ExtractedImage {
+  storedRecord?: GalleryRecord;
   b64?: string;
   url?: string;
   mime: string;
@@ -76,17 +80,23 @@ function compactText(value: string, max = 120): string {
 }
 
 async function fetchJson(ctx: ApiContext, path: string, init: RequestInit): Promise<any> {
-  const url = "/api/lucen/" + ctx.provider + path;
+  const url = appPath("/api/lucen/" + ctx.provider + path);
   let response: Response;
+  let text: string;
+  const persistedGeneration = Boolean(ctx.galleryContext && init.method === "POST");
   try {
-    response = await fetch(url, init);
+    const headers = new Headers(init.headers);
+    if (persistedGeneration) headers.set("X-Lucen-Gallery-Context", encodeURIComponent(JSON.stringify(ctx.galleryContext)));
+    response = await fetch(url, { ...init, headers });
+    text = await response.text();
   } catch (error) {
+    if (init.signal?.aborted) throw error;
     const wrapped = new ApiError(error instanceof Error ? error.message : "网络请求失败");
     wrapped.isNetwork = true;
+    if (persistedGeneration) wrapped.code = "GENERATION_RESULT_UNCONFIRMED";
     throw wrapped;
   }
 
-  const text = await response.text();
   const json = safeJsonParse<any>(text, null);
   if (!response.ok) {
     if (response.status === 401 && errorCodeFrom(json) === "AUTH_REQUIRED") notifyUnauthorized();
@@ -105,8 +115,16 @@ async function fetchJson(ctx: ApiContext, path: string, init: RequestInit): Prom
     const error = new ApiError(String(message));
     error.status = response.status;
     error.code = errorCodeFrom(json) || errorCodeFrom(embedded);
+    if (persistedGeneration && response.status >= 500 && !error.code?.startsWith("GENERATION_")) {
+      error.code = "GENERATION_RESULT_UNCONFIRMED";
+    }
     error.upstreamMessage = upstreamMessage;
     error.payload = json ?? embedded ?? text;
+    throw error;
+  }
+  if (persistedGeneration && (!json || typeof json !== "object")) {
+    const error = new ApiError("生成结果响应不完整");
+    error.code = "GENERATION_RESULT_UNCONFIRMED";
     throw error;
   }
   return json ?? {};
@@ -226,7 +244,16 @@ export async function editImage(ctx: ApiContext, params: EditParams, signal: Abo
 }
 
 /** 兼容多种返回字段：data[].b64_json / url / output[] 等 */
+function storedImages(json: any): ExtractedImage[] | undefined {
+  if (!Array.isArray(json?.lucen?.galleryRecords)) return undefined;
+  return json.lucen.galleryRecords.map((record: GalleryRecord) => ({
+    storedRecord: record, mime: record.mime || "image/png", revisedPrompt: record.revisedPrompt || "",
+  }));
+}
+
 export function extractImages(json: any): ExtractedImage[] {
+  const stored = storedImages(json);
+  if (stored) return stored;
   const items: any[] = [];
   if (Array.isArray(json?.data)) items.push(...json.data);
   if (Array.isArray(json?.output)) items.push(...json.output);
@@ -249,6 +276,8 @@ export function extractImages(json: any): ExtractedImage[] {
 }
 
 export function extractGeminiImages(json: any): ExtractedImage[] {
+  const stored = storedImages(json);
+  if (stored) return stored;
   const results: ExtractedImage[] = [];
   const candidates = Array.isArray(json?.candidates) ? json.candidates : [];
   for (const candidate of candidates) {
@@ -270,6 +299,7 @@ export function isRetriable(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   if (error.name === "AbortError") return false;
   const apiError = error as ApiError;
+  if (apiError.code?.startsWith("GENERATION_")) return false;
   if (apiError.isNetwork) return true;
   if (apiError.status && (apiError.status >= 500 || apiError.status === 429)) return true;
   return false;
@@ -366,6 +396,12 @@ export function explainError(error: unknown): ErrorInfo {
   const err = error as ApiError | undefined;
   if (err && err.name === "AbortError") {
     return { short: "请求已取消" };
+  }
+  if (err?.code === "GENERATION_RESULT_UNCONFIRMED" || err?.code === "GENERATION_PROXY_FAILED") {
+    return { short: "生成响应传输中断，请先检查画廊", hint: "服务器可能已保存结果；请刷新画廊确认，避免重复生成和计费。" };
+  }
+  if (err?.code === "GENERATION_STORAGE_FAILED") {
+    return { short: "图片已生成，但服务端保存失败", hint: "请检查服务日志和存储空间；本次不会自动重复生图。" };
   }
   if (err && err.isNetwork) {
     return {

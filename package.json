@@ -13,7 +13,8 @@
     "verify:providers": "node verify-providers.cjs",
     "prepack": "npm run build",
     "package": "node scripts/pack.cjs",
-    "verify:storage": "node verify-local-media.cjs"
+    "verify:storage": "node verify-local-media.cjs",
+    "verify:generation": "node verify-generation.cjs"
   },
   "dependencies": {
     "@fontsource-variable/space-grotesk": "^5.2.5",

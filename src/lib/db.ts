@@ -1,8 +1,9 @@
 // 本地文件系统存储（通过后端 API），替代 IndexedDB
 
+import { appPath } from "./basePath";
 import { notifyUnauthorized } from "./session";
 
-const API_BASE = "/api/local";
+const API_BASE = appPath("/api/local");
 
 export interface KvRecord {
   key: string;
