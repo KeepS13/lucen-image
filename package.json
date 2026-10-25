@@ -11,6 +11,8 @@
     "start": "node lucen-local-proxy.cjs",
     "verify:auth": "node verify-web-auth.cjs",
     "verify:providers": "node verify-providers.cjs",
+    "prepack": "npm run build",
+    "package": "node scripts/pack.cjs",
     "verify:storage": "node verify-local-media.cjs"
   },
   "dependencies": {
@@ -37,5 +39,13 @@
   },
   "engines": {
     "node": ">=20.0.0"
-  }
+  },
+  "files": [
+    "dist/",
+    "legacy/",
+    "lucen-local-proxy.cjs",
+    "lucen-auth.cjs",
+    "local-media.cjs",
+    "README.md"
+  ]
 }

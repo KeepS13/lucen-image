@@ -1,21 +1,100 @@
-# Lucen Web 部署说明
+# Lucen npm 部署说明
 
 ## 部署结构
 
-`compose.yaml` 启动两个服务：Caddy 对外监听 `80/443` 并自动管理 HTTPS；Lucen 仅在内部网络监听 `8787`。SQLite、输入图与上传临时文件写入 `lucen-data:/app/data`。
+发布物为一个 npm `.tgz` 包，内含构建后的前端、Node 服务端和运行依赖清单。目标服务器只需 Node.js 20 或更高版本与 npm，不需要构建前端。
 
-该部署只支持单个 Lucen 实例。所有通过共享密码登录的用户共用工作区、Prompt、画廊和上传队列，也拥有相同删除权限。
+该部署只支持单个 Lucen 实例。所有通过共享密码登录的用户共用工作区、Prompt、画廊和本地图片存储，也拥有相同删除权限。应用默认监听 `8787`，生产部署应只监听 `127.0.0.1`，由现有 HTTPS 反向代理提供外部访问。
+
+## 生成发布包
+
+在开发机执行：
+
+```bash
+npm ci
+npm run package
+```
+
+`prepack` 会先运行 `npm run build`，生成的 `.tgz` 位于 `release/`。发布包不包含 `node_modules`、`.env`、运行数据、测试文件或源码开发配置。
 
 ## 首次部署
 
-1. 安装 Docker Engine 与 Compose 插件。
-2. 将域名解析到 VPS，并开放 `80/tcp`、`443/tcp`、`443/udp`。
-3. 根据 `.env.example` 创建 `.env`。
-4. 为 `LUCEN_SESSION_SECRET` 生成至少 32 字节的独立随机值。
-5. 执行 `docker compose up -d --build`。
-6. 访问域名，使用 `LUCEN_ACCESS_PASSWORD` 登录。
+以下命令以 Linux 和 Bash 为例，将应用安装到 `/opt/lucen/releases/2.0.0`，数据放在 `/var/lib/lucen`：
 
-生产环境不复制当前开发目录的 `data/`；首次启动会在空的 `lucen-data` 卷中创建 SQLite。升级时不要删除该卷。
+```bash
+mkdir -p /opt/lucen/releases/2.0.0 /var/lib/lucen
+cd /opt/lucen/releases/2.0.0
+npm init -y
+npm install --omit=dev /path/to/lucen-image-workbench-2.0.0.tgz
+```
+
+配置生产环境变量：
+
+```bash
+export NODE_ENV=production
+export LUCEN_WORKBENCH_HOST=127.0.0.1
+export LUCEN_WORKBENCH_PORT=8787
+export LUCEN_DATA_DIR=/var/lib/lucen
+export LUCEN_ACCESS_PASSWORD='replace-with-a-strong-shared-password'
+export LUCEN_SESSION_SECRET='replace-with-at-least-32-random-bytes'
+export LUCEN_GPT_API_KEY='your-gpt-key'
+export LUCEN_GEMINI_API_KEY='your-gemini-key'
+```
+
+`LUCEN_SESSION_SECRET` 应使用至少 32 字节的独立随机值。环境变量由 systemd、PM2 或其他进程管理器保存，不写入发布包。
+
+启动并检查：
+
+```bash
+npm start --prefix /opt/lucen/releases/2.0.0
+curl --fail http://127.0.0.1:8787/__health
+```
+
+预期健康检查返回 `{ "ok": true }`。将现有 HTTPS 反向代理的上游配置为 `http://127.0.0.1:8787`。若使用可信反向代理，设置 `LUCEN_TRUST_PROXY=1`；不要让未受信任的客户端直接访问应用端口。
+
+## systemd 示例
+
+可将环境变量保存为仅 root 可读的 `/etc/lucen/lucen.env`，使用以下服务单元作为参考。`EnvironmentFile` 使用 `KEY=VALUE` 格式，不包含 `export`。
+
+```ini
+[Unit]
+Description=Lucen Image Workbench
+After=network.target
+
+[Service]
+Type=simple
+User=lucen
+Group=lucen
+WorkingDirectory=/opt/lucen/releases/2.0.0
+EnvironmentFile=/etc/lucen/lucen.env
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+按服务器实际 Node/npm 路径调整 `ExecStart`，并确保 `lucen` 用户对版本目录有读取权限、对 `/var/lib/lucen` 有读写权限。
+
+## 升级、停止和回退
+
+升级：
+
+1. 在新的版本目录安装新的 `.tgz`，不要覆盖正在运行的目录。
+2. 执行验证并准备好新版环境配置。
+3. 停止旧进程，使用相同的 `LUCEN_DATA_DIR` 启动新版。
+4. 检查健康接口和登录、画廊功能。
+
+回退时停止当前进程，使用相同数据目录重新启动旧版本目录。应用和数据分离后，升级或回退不会自动清空 SQLite。
+
+停止服务但保留数据，以 systemd 为例：
+
+```bash
+systemctl stop lucen
+systemctl restart lucen
+journalctl -u lucen -f
+```
 
 ## Provider 配置
 
@@ -45,34 +124,16 @@ Gemini: LUCEN-CC-GEMINI-3.1-FLASH-IMAGE
 - 同一 IP 在 15 分钟内允许 5 次错误密码，第 6 次开始返回 `429`。
 - `/api/local/*`、`/api/lucen/*` 和 `/legacy` 需要会话；公开健康检查只返回 `{ "ok": true }`。
 - 修改 `LUCEN_SESSION_SECRET` 会立即使所有已有会话失效。
-- 只有在 Caddy 等可信反向代理后才设置 `LUCEN_TRUST_PROXY=1`，且不要把应用的 `8787` 端口直接暴露到公网。
+- 只有在可信反向代理后才设置 `LUCEN_TRUST_PROXY=1`，且不要把应用的 `8787` 端口直接暴露到公网。
 
-## 图片存储
+## 图片存储、保留期限与备份
 
-每张生成图片创建原图和 WebP 缩略图两个独立任务。缩略图严格小于 `100000` 字节，列表只加载缩略图；展开、下载和二创才读取原图。上传成功后会重新下载并校验 MIME、字节数和 SHA-256，然后提交 SQLite 并删除对应本地临时文件。
+生成图以原始字节保存到 `LUCEN_DATA_DIR/images`，WebP 缩略图保存到 `LUCEN_DATA_DIR/thumbnails`。缩略图严格小于 `100000` 字节，列表只加载缩略图；展开、下载和二创才读取原图。服务端会校验 PNG/JPEG/WebP MIME、计算 SHA-256，并在删除时同时移除原图、缩略图和数据库记录。
 
-失败任务默认 5 分钟后重试，HTTP `429 Retry-After` 更长时按其等待。远端 Remit 图片无法通过本应用删除。
+全局保留期限默认 30 天，可登录现代版或 `/legacy` 在侧栏设置为 1–3650 天的整数。按创建时间计算；收藏图片永久豁免，二创输入图也按同一期限清理。修改设置会立即清理，启动时清理一次，此后每小时运行一次。清理文件失败时会保留数据库记录，并在下一轮重试。
 
-## 运维命令
+SQLite、原图、缩略图和输入图均位于 `LUCEN_DATA_DIR`。图片仅通过需要登录会话的同源 `/api/local` 接口读取，不是公开图床，也不提供公开直链。备份时先停止应用，再备份完整目录；不要让多个实例同时写入该目录。容量由该目录所在磁盘和现有备份流程管理。
 
-```bash
-docker compose ps
-docker compose logs -f lucen
-docker compose restart lucen
-docker compose pull
-docker compose up -d
-```
+## 构建产物
 
-停止服务但保留数据：
-
-```bash
-docker compose down
-```
-
-不要使用 `docker compose down -v`，它会删除 SQLite 数据卷。
-
-## 本地发布准备
-
-`.github/workflows/ci.yml` 会在 PR 上执行类型、鉴权、队列、Provider 浏览器和 Docker 构建检查。`publish.yml` 已配置未来在 `main`、`v*` 标签和手动触发时发布 `ghcr.io/keeps13/lucen-image` 的 `linux/amd64` 镜像。
-
-当前阶段只准备这些文件，不执行 Git 初始化、提交、推送、Actions 或 GHCR 发布。
+CI 会执行类型、鉴权、本地媒体存储、Provider 浏览器和 npm 打包验证。`v*` 标签或手动触发 `Publish npm Package` 工作流时，`.tgz` 会上传为 GitHub Actions 构建产物，保留 30 天。

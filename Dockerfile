@@ -26,7 +26,7 @@ RUN groupadd --system lucen \
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/legacy ./legacy
-COPY package.json lucen-local-proxy.cjs lucen-auth.cjs remit-upload.cjs ./
+COPY package.json lucen-local-proxy.cjs lucen-auth.cjs local-media.cjs ./
 USER lucen
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
