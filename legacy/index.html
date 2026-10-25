@@ -1268,6 +1268,9 @@
             模型
             <select class="model-select">
               <option value="gpt-image-2">gpt-image-2</option>
+              <option value="gpt-image-2.5">gpt-image-2.5</option>
+              <option value="gpt-image-2.5-flare">gpt-image-2.5-flare</option>
+              <option value="gpt-image-2.5-sunburst">gpt-image-2.5-sunburst</option>
               <option value="gemini-3.1-flash-image">gemini-3.1-flash-image</option>
             </select>
           </label>
@@ -1288,8 +1291,15 @@
     (function () {
       "use strict";
 
-      const GPT_MODEL = "gpt-image-2";
+      const GPT_MODEL_IDS = [
+        "gpt-image-2",
+        "gpt-image-2.5",
+        "gpt-image-2.5-flare",
+        "gpt-image-2.5-sunburst"
+      ];
+      const GPT_MODEL = GPT_MODEL_IDS[0];
       const GEMINI_MODEL = "gemini-3.1-flash-image";
+      const MODEL_IDS = GPT_MODEL_IDS.concat(GEMINI_MODEL);
       const PROXY_BASE_URL = "/api/lucen";
       const LOCAL_API_BASE = "/api/local";
       const LOCAL_KEY = "lucen-image-studio-settings";
@@ -1439,7 +1449,7 @@
           prompt: seed && seed.prompt ? seed.prompt : "",
           size: seed && seed.size ? seed.size : "auto",
           count: seed && seed.count ? seed.count : "1",
-          model: seed && seed.model === GEMINI_MODEL ? GEMINI_MODEL : GPT_MODEL,
+          model: seed && MODEL_IDS.includes(seed.model) ? seed.model : GPT_MODEL,
           aspectRatio: seed && seed.aspectRatio ? seed.aspectRatio : "1:1",
           imageSize: seed && seed.imageSize ? seed.imageSize : "1K",
           editImage: seed && seed.editImage ? seed.editImage : null,
@@ -1605,7 +1615,7 @@
       }
 
       function setModel(workspace, model) {
-        workspace.model = model === GEMINI_MODEL ? GEMINI_MODEL : GPT_MODEL;
+        workspace.model = MODEL_IDS.includes(model) ? model : GPT_MODEL;
         workspace.nodes.model.value = workspace.model;
         const isGemini = workspace.model === GEMINI_MODEL;
         workspace.nodes.gptControls.forEach((control) => {
@@ -2389,11 +2399,12 @@
             method: "GET"
           });
           const models = Array.isArray(json.data) ? json.data : [];
-          const found = models.some((model) => (typeof model === "string" ? model : model && model.id) === expectedModel);
-          if (!found) {
-            throw new Error("模型目录中未找到 " + expectedModel);
+          const ids = models.map((model) => typeof model === "string" ? model : model && model.id);
+          const missingModels = expectedModels.filter((model) => !ids.includes(model));
+          if (missingModels.length) {
+            throw new Error("模型目录中未找到 " + missingModels.join("、"));
           }
-          setProviderStatus(provider, "连接成功，已发现 " + expectedModel, "ok");
+          setProviderStatus(provider, "连接成功，已发现 " + expectedModels.join("、"), "ok");
         } catch (error) {
           const info = explainError(error);
           setProviderStatus(provider, info.short, "err");

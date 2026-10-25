@@ -1,8 +1,14 @@
 import type { GeminiAspectRatio, GeminiImageSize, ImageProvider } from "./types";
 
-export const GPT_MODEL = "gpt-image-2";
+export const GPT_MODEL_IDS = [
+  "gpt-image-2",
+  "gpt-image-2.5",
+  "gpt-image-2.5-flare",
+  "gpt-image-2.5-sunburst",
+] as const;
+export const GPT_MODEL = GPT_MODEL_IDS[0];
 export const GEMINI_MODEL = "gemini-3.1-flash-image";
-export const MODEL_IDS = [GPT_MODEL, GEMINI_MODEL] as const;
+export const MODEL_IDS = [...GPT_MODEL_IDS, GEMINI_MODEL] as const;
 
 export const GEMINI_ASPECT_RATIOS: GeminiAspectRatio[] = [
   "1:1",

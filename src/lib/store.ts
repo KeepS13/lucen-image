@@ -17,6 +17,7 @@ import {
   GEMINI_IMAGE_SIZES,
   GEMINI_MODEL,
   GPT_MODEL,
+  GPT_MODEL_IDS,
   MODEL_IDS,
   isSupportedModel,
   providerForModel,
@@ -484,7 +485,7 @@ export const useApp = create<AppStore>()((set, get) => {
 
     testConnection: async (provider) => {
       const state = get();
-      const expectedModel = provider === "gpt" ? GPT_MODEL : GEMINI_MODEL;
+      const expectedModels = provider === "gpt" ? GPT_MODEL_IDS : [GEMINI_MODEL];
       if (!state.providers[provider]) {
         set((current) => ({
           connections: {
@@ -502,13 +503,16 @@ export const useApp = create<AppStore>()((set, get) => {
       }));
       try {
         const ids = await listModels({ provider });
-        const available = ids.includes(expectedModel);
+        const missingModels = expectedModels.filter((model) => !ids.includes(model));
+        const available = missingModels.length === 0;
         set((current) => ({
           connections: {
             ...current.connections,
             [provider]: {
               status: available ? "ok" : "err",
-              message: available ? "连接成功，模型可用" : "连接成功，但未发现目标模型",
+              message: available
+                ? "连接成功，模型可用"
+                : "连接成功，但未发现 " + missingModels.join("、"),
             },
           },
         }));
