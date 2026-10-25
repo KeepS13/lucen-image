@@ -7,11 +7,9 @@ import {
   useTransform,
 } from "motion/react";
 import {
-  Check,
   ChevronLeft,
   ChevronRight,
   Columns2,
-  Copy,
   Download,
   ExternalLink,
   Maximize,
@@ -26,28 +24,17 @@ import { useApp } from "../lib/store";
 import type { ResultItem } from "../lib/types";
 import {
   clamp,
-  copyTextToClipboard,
   downloadBlob,
-  downloadUrl,
   extOfMime,
   resultFileBase,
 } from "../lib/utils";
-import { useFlash } from "./ui";
 
 const PAN_SPRING = { type: "spring", stiffness: 320, damping: 32 } as const;
 
 async function getBlob(item: ResultItem): Promise<Blob | null> {
+  if (!item.hasBlob || !item.objectUrl) return null;
   try {
-    if (!item.hasBlob || !item.objectUrl) throw new Error("no image content");
     const response = await fetch(item.objectUrl);
-    if (response.ok) return await response.blob();
-  } catch {
-    // Fall back to the remote URL below when the local cache is unavailable.
-  }
-  const fallbackUrl = item.remoteUrl || item.url;
-  if (!fallbackUrl) return null;
-  try {
-    const response = await fetch(fallbackUrl);
     return response.ok ? await response.blob() : null;
   } catch {
     return null;
@@ -59,7 +46,6 @@ export function ImageViewer() {
   const closeViewer = useApp((s) => s.closeViewer);
   const setViewerIndex = useApp((s) => s.setViewerIndex);
   const toast = useApp((s) => s.toast);
-  const [copied, flashCopied] = useFlash();
   const [compare, setCompare] = useState(false);
 
   const stageRef = useRef<HTMLDivElement>(null);
@@ -168,23 +154,8 @@ export function ImageViewer() {
     if (!current) return;
     const blob = await getBlob(current);
     const filename = resultFileBase(current);
-    if (blob) downloadBlob(blob, filename + "." + extOfMime(blob.type));
-    else if (current.remoteUrl || current.url) downloadUrl(current.remoteUrl || current.url || "", filename + "." + extOfMime(current.mime || "image/png"));
-    else toast("没有可下载的数据", "err");
-  }
-
-  async function handleCopyLink() {
-    if (!current?.remoteUrl) {
-      toast("原图仍在上传，完成后才能复制链接", "info");
-      return;
-    }
-    try {
-      await copyTextToClipboard(current.remoteUrl);
-      flashCopied();
-      toast("Remit 直链已复制", "ok");
-    } catch {
-      toast("复制失败", "err");
-    }
+    if (blob) downloadBlob(blob, filename + "." + extOfMime(blob.type || current.mime || "image/png"));
+    else toast("本地图片内容不可用，请刷新后重试", "err");
   }
 
   const hasCompare = Boolean(current?.sourceDataUrl);
@@ -235,14 +206,10 @@ export function ImageViewer() {
               <ToolButton tip="下载" onClick={() => void handleDownload()}>
                 <Download size={15} />
               </ToolButton>
-              <ToolButton tip="复制图片链接" onClick={() => void handleCopyLink()}>
-                {copied ? <Check size={15} className="text-[var(--ok)]" /> : <Copy size={15} />}
-              </ToolButton>
               <ToolButton
                 tip="新标签打开"
                 onClick={() => {
-                  const src = current.remoteUrl || current.objectUrl || current.url;
-                  if (src) window.open(src, "_blank", "noopener,noreferrer");
+                  if (current.objectUrl) window.open(current.objectUrl, "_blank", "noopener,noreferrer");
                 }}
               >
                 <ExternalLink size={15} />
@@ -291,7 +258,7 @@ export function ImageViewer() {
                 >
                   <motion.img
                     ref={imgRef}
-                    src={current.objectUrl || current.url}
+                    src={current.objectUrl}
                     alt={current.prompt}
                     draggable={false}
                     onLoad={fit}

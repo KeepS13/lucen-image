@@ -4,14 +4,6 @@ import { notifyUnauthorized } from "./session";
 
 const API_BASE = "/api/local";
 
-export type UploadStatus =
-  | "pending"
-  | "uploading"
-  | "retry_wait"
-  | "blocked"
-  | "succeeded"
-  | "canceled";
-
 export interface KvRecord {
   key: string;
   value: string;
@@ -28,22 +20,11 @@ export interface GalleryRecord {
   mode: string;
   filename: string | null;
   url?: string;
-  remoteUrl?: string;
   mime?: string;
   contentSha256?: string;
-  uploadStatus?: UploadStatus;
-  uploadAttempts?: number;
-  nextRetryAt?: number | null;
-  lastUploadError?: string | null;
-  uploadedAt?: number | null;
-  thumbnailUrl?: string | null;
+  expiresAt: number | null;
   thumbnailMime?: string | null;
   thumbnailSha256?: string | null;
-  thumbnailStatus?: UploadStatus;
-  thumbnailAttempts?: number;
-  thumbnailNextRetryAt?: number | null;
-  thumbnailLastUploadError?: string | null;
-  thumbnailUploadedAt?: number | null;
   thumbnailByteSize?: number | null;
   thumbnailReady?: boolean;
   sourceDataUrl?: string;
@@ -67,34 +48,19 @@ export interface GalleryPage {
   hasMore: boolean;
 }
 
-export interface UploadJob {
-  galleryId: string;
-  kind: "new" | "historical";
-  status: UploadStatus;
-  attempts: number;
-  nextRetryAt: number | null;
+export interface StorageStatus {
+  retentionDays: number;
+  nextCleanupAt: number;
+  lastCleanupAt: number | null;
+  lastDeletedCount: number;
+  galleryCount: number;
+  inputCount: number;
   lastError: string | null;
-  byteSize: number;
-  originalByteSize: number;
-  mime: string;
-  remoteUrl?: string | null;
-  galleryRemoteUrl?: string | null;
-  variant?: "original" | "thumbnail";
-  workspaceTitle: string;
-  prompt: string;
-  createdAt: number;
 }
 
-export interface UploadSummary {
-  counts: Partial<Record<UploadStatus, number>>;
-  breakdown?: {
-    original: Partial<Record<UploadStatus, number>>;
-    thumbnail: Partial<Record<UploadStatus, number>>;
-    total: Partial<Record<UploadStatus, number>>;
-  };
-  items: UploadJob[];
-  historical: { total: number; succeeded: number; blocked: number };
-  worker: { running: boolean; enabled: boolean; lastError: string };
+export interface StorageUpdateResult extends StorageStatus {
+  deleted: number;
+  failures: { id: string; message: string }[];
 }
 
 export interface InputRecord {
@@ -156,7 +122,7 @@ export const gallery = {
   },
 
   async add(
-    record: Omit<GalleryRecord, "filename" | "favorite"> & { blob?: string; mime?: string },
+    record: Omit<GalleryRecord, "filename" | "favorite" | "expiresAt" | "thumbnailReady"> & { blob?: string; mime?: string },
   ): Promise<GalleryRecord> {
     const data = await fetchApi("/gallery", {
       method: "POST",
@@ -195,14 +161,17 @@ export const gallery = {
   },
 };
 
-export const uploads = {
-  async getSummary(limit = 100): Promise<UploadSummary> {
-    return fetchApi("/uploads?limit=" + limit);
+export const storage = {
+  async getStatus(): Promise<StorageStatus> {
+    return fetchApi("/storage");
   },
 
-  async retry(id: string, variant?: "original" | "thumbnail"): Promise<void> {
-    const suffix = variant ? "?variant=" + encodeURIComponent(variant) : "";
-    await fetchApi("/uploads/" + encodeURIComponent(id) + "/retry" + suffix, { method: "POST" });
+  async updateRetentionDays(retentionDays: number): Promise<StorageUpdateResult> {
+    return fetchApi("/storage", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ retentionDays }),
+    });
   },
 };
 

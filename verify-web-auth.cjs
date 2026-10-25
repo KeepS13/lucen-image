@@ -145,7 +145,6 @@ async function verifyServerIntegration() {
       LUCEN_GEMINI_API_KEY: "server-gemini-key",
       LUCEN_TRUST_PROXY: "1",
       LUCEN_TEST_UPSTREAM_BASE_URL: "http://127.0.0.1:" + upstreamAddress.port,
-      LUCEN_DISABLE_REMIT_UPLOAD: "1",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

@@ -15,7 +15,7 @@ import { useApp } from "../lib/store";
 import { springSoft } from "../lib/motion";
 import { logout } from "../lib/session";
 import { Kbd, MagneticButton } from "./ui";
-import { UploadQueueStatus } from "./UploadQueueStatus";
+import { LocalStorageStatus } from "./LocalStorageStatus";
 
 const STATUS_COLOR: Record<string, string> = {
   idle: "var(--muted)",
@@ -170,7 +170,7 @@ export function Sidebar() {
         ))}
       </div>
 
-      <UploadQueueStatus />
+      <LocalStorageStatus />
 
       {/* 底部工具 */}
       <div className="mt-auto grid gap-3 border-t border-[var(--line)] pt-4">

@@ -273,6 +273,7 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
                                           mode: "edit",
                                           objectUrl: entry.dataUrl,
                                           hasBlob: false,
+                                          expiresAt: null,
                                           favorite: false,
                                           createdAt: Date.now(),
                                         },

@@ -4,7 +4,13 @@ const { randomUUID } = require("crypto");
 const sharp = require("sharp");
 
 const BASE_URL = process.env.WORKBENCH_URL || "http://127.0.0.1:8787";
-const GPT_MODEL = "gpt-image-2";
+const GPT_MODEL_IDS = [
+  "gpt-image-2",
+  "gpt-image-2.5",
+  "gpt-image-2.5-flare",
+  "gpt-image-2.5-sunburst",
+];
+const GPT_MODEL = GPT_MODEL_IDS[0];
 const GEMINI_MODEL = "gemini-3.1-flash-image";
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -39,6 +45,7 @@ async function installMocks(page, options = {}) {
     galleryPosts: [],
     localRequests: [],
     geminiResponseIndex: 0,
+    storage: { retentionDays: options.retentionDays || 30, nextCleanupAt: Date.now() + 3600000, lastCleanupAt: null, lastDeletedCount: 0, galleryCount: 0, inputCount: 0, lastError: null },
   };
 
   await page.route("**/api/auth/session", (route) =>
@@ -99,24 +106,13 @@ async function installMocks(page, options = {}) {
         ...body,
         filename,
         favorite: 0,
-        remoteUrl: "",
         mime: body.mime || "image/png",
         contentSha256: "mock-sha256",
-        uploadStatus: "pending",
-        uploadAttempts: 0,
-        nextRetryAt: Date.now(),
-        lastUploadError: null,
-        uploadedAt: null,
-        thumbnailUrl: "",
         thumbnailMime: "image/webp",
         thumbnailSha256: "mock-thumb-sha256",
-        thumbnailStatus: "pending",
-        thumbnailAttempts: 0,
-        thumbnailNextRetryAt: Date.now(),
-        thumbnailLastUploadError: null,
-        thumbnailUploadedAt: null,
         thumbnailByteSize: Buffer.from(WEBP_BASE64, "base64").length,
         thumbnailReady: true,
+        expiresAt: Date.now() + 30 * 86400000,
       };
       delete record.blob;
       state.gallery.unshift(record);
@@ -158,17 +154,22 @@ async function installMocks(page, options = {}) {
       if (index >= 0) state.gallery.splice(index, 1);
       return json(route, 200, { ok: true, deleted: index >= 0, remoteRetained: false });
     }
-    if (path === "/api/local/uploads" && method === "GET") {
-      const pending = state.gallery.filter((item) => item.uploadStatus === "pending").length;
+    if (path === "/api/local/storage" && method === "GET") {
       return json(route, 200, {
-        counts: pending ? { pending } : {},
-        items: [],
-        historical: { total: 0, succeeded: 0, blocked: 0 },
-        worker: { running: false, enabled: true, lastError: "" },
+        ...state.storage,
+        galleryCount: state.gallery.length,
+        inputCount: state.inputs.size,
+        nextCleanupAt: state.storage.nextCleanupAt || Date.now() + 3600000,
       });
     }
-    if (/^\/api\/local\/uploads\/[^/]+\/retry$/.test(path) && method === "POST") {
-      return json(route, 200, { ok: true });
+    if (path === "/api/local/storage" && method === "PUT") {
+      const body = request.postDataJSON();
+      const days = Number(body.retentionDays);
+      if (!Number.isInteger(days) || days < 1 || days > 3650) {
+        return json(route, 400, { error: { code: "INVALID_RETENTION_DAYS", message: "Retention days must be an integer between 1 and 3650." } });
+      }
+      state.storage.retentionDays = days;
+      return json(route, 200, { ...state.storage, galleryCount: state.gallery.length, inputCount: state.inputs.size, deleted: 0, failures: [] });
     }
     if (path.startsWith("/api/local/image/") && method === "GET") {
       const filename = decodeURIComponent(path.split("/").pop());
@@ -217,8 +218,8 @@ async function installMocks(page, options = {}) {
     state.providerRequests.push(entry);
 
     if (url.pathname.endsWith("/models")) {
-      const model = provider === "gemini" ? GEMINI_MODEL : GPT_MODEL;
-      return json(route, 200, { data: [{ id: model }] });
+      const models = provider === "gemini" ? [GEMINI_MODEL] : GPT_MODEL_IDS;
+      return json(route, 200, { data: models.map((id) => ({ id })) });
     }
     if (provider === "gpt" && url.pathname.endsWith("/images/generations")) {
       return json(route, 200, { data: [{ b64_json: PNG_BASE64, mime_type: "image/png" }] });
@@ -280,8 +281,8 @@ async function verifyGalleryStorage() {
       const thumbnail = await fetch(BASE_URL + "/api/local/gallery/" + id + "/thumbnail");
       const thumbnailBytes = Buffer.from(await thumbnail.arrayBuffer());
       check(
-        "待上传内容接口返回真实 " + mime,
-        response.ok && stored.filename === id + "." + extension && stored.record.uploadStatus === "pending" &&
+        "本地媒体接口返回真实 " + mime,
+        response.ok && stored.filename === id + "." + extension && stored.record.filename === id + "." + extension && stored.record.mime === mime &&
           image.headers.get("content-type") === mime &&
           bytes.equals(Buffer.from(inputBlob, "base64")) &&
           thumbnail.ok && thumbnail.headers.get("content-type") === "image/webp" &&
@@ -331,6 +332,17 @@ async function verifyModern(browser) {
   await waitForWorkspace(page, "[data-ws]");
   const workspace = page.locator("[data-ws]").first();
 
+  const storageCard = page.getByRole("region", { name: "本地存储" });
+  check("新版显示本地存储设置卡", await storageCard.isVisible() && await page.locator("#storage-retention-days").inputValue() === "30");
+  check("新版不再显示 Remit 文案", (await page.getByText(/Remit|图床|上传中|等待重试/).count()) === 0);
+  await page.locator("#storage-retention-days").fill("0");
+  await page.waitForTimeout(100);
+  check("新版输入框约束非法保留天数", await page.locator("#storage-retention-days").evaluate((input) => input.validity.rangeUnderflow));
+  await page.locator("#storage-retention-days").fill("45");
+  await page.waitForTimeout(100);
+  await storageCard.getByRole("button", { name: "保存" }).click();
+  await page.waitForFunction(() => document.querySelector("#storage-retention-days")?.value === "45");
+  check("新版设置保存后刷新共享存储状态", state.storage.retentionDays === 45);
   check("新版移除 Base URL 控件", (await page.getByText(/BASE URL/i).count()) === 0);
   check(
     "新版不再展示 Provider Key 输入",
@@ -434,6 +446,29 @@ async function verifyModern(browser) {
       !gptCall.authorization && gptBody.model === GPT_MODEL,
   );
 
+  check(
+    "新版提供全部 GPT 生图模型",
+    JSON.stringify(await workspace.locator("select").first().locator("option").evaluateAll((options) => options.map((option) => option.value))) ===
+      JSON.stringify([...GPT_MODEL_IDS, GEMINI_MODEL]),
+  );
+  await workspace.locator("select").first().selectOption("gpt-image-2.5-sunburst");
+  await workspace.locator("textarea").fill("mock gpt image 2.5 sunburst");
+  const gptCallCount = state.providerRequests.filter((entry) => entry.path.endsWith("/images/generations")).length;
+  await workspace.getByRole("button", { name: "开始生成" }).click();
+  await page.waitForFunction(
+    () => document.body.textContent.includes("完成 1 张"),
+    null,
+    { timeout: 5000 },
+  );
+  const sunburstCall = state.providerRequests
+    .filter((entry) => entry.path.endsWith("/images/generations"))
+    .at(-1);
+  check(
+    "新版新模型使用 GPT 路由并传递所选模型",
+    state.providerRequests.filter((entry) => entry.path.endsWith("/images/generations")).length > gptCallCount &&
+      sunburstCall.path.endsWith("/api/lucen/gpt/images/generations") &&
+      JSON.parse(sunburstCall.body).model === "gpt-image-2.5-sunburst",
+  );
   const contentBeforeOpen = state.localRequests.filter((entry) => entry.path.endsWith("/content")).length;
   const thumbnailRequests = state.localRequests.filter((entry) => entry.path.endsWith("/thumbnail")).length;
   const resultImage = page.locator("[data-ws] .neon-border img").first();
@@ -447,7 +482,7 @@ async function verifyModern(browser) {
   await page.waitForTimeout(400);
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForWorkspace(page, "[data-ws]");
-  check("新版刷新后画廊结果可重载", (await page.locator("[data-ws] img").count()) >= 4);
+  check("新版刷新后画廊结果可重载", (await page.locator("[data-ws] img").count()) >= 4 && (await page.getByText(/Remit|图床|上传中|等待重试/).count()) === 0);
   const reloadedWorkspace = page.locator("[data-ws]").first();
   await reloadedWorkspace.locator("select").first().selectOption(GEMINI_MODEL);
   await page.waitForTimeout(1800);
@@ -474,11 +509,17 @@ async function verifyLegacy(browser) {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  const state = await installMocks(page);
+  const state = await installMocks(page, { retentionDays: 45 });
 
   await page.goto(BASE_URL + "/legacy", { waitUntil: "domcontentloaded" });
   await waitForWorkspace(page, ".workspace");
   const workspace = page.locator(".workspace").first();
+  await page.waitForFunction(() => document.querySelector("#storageRetentionDays")?.value === "45");
+  check("旧版显示本地存储设置卡", await page.getByRole("region", { name: "本地存储" }).isVisible() && await page.locator("#storageRetentionDays").inputValue() === "45");
+  check("旧版不再显示 Remit 文案", (await page.getByText(/Remit|图床|上传中|等待重试/).count()) === 0);
+  await page.locator("#storageRetentionDays").fill("0");
+  await page.waitForTimeout(100);
+  check("旧版输入框约束非法保留天数", await page.locator("#storageRetentionDays").evaluate((input) => input.validity.rangeUnderflow));
   check("旧版移除 Base URL 控件", (await page.getByText(/Base URL/i).count()) === 0);
   check("旧版不再展示 Provider Key 输入", (await page.locator("#gptApiKeyInput, #geminiApiKeyInput, #persistKeyInput").count()) === 0);
   const legacyCleared = await page.evaluate(() => ({
@@ -516,6 +557,29 @@ async function verifyLegacy(browser) {
   );
   check("旧版解析 Gemini inlineData 图片", (await workspace.locator(".result img").count()) === 1);
 
+  check(
+    "旧版提供全部 GPT 生图模型",
+    JSON.stringify(await workspace.locator(".model-select option").evaluateAll((options) => options.map((option) => option.value))) ===
+      JSON.stringify([...GPT_MODEL_IDS, GEMINI_MODEL]),
+  );
+  await workspace.locator(".model-select").selectOption("gpt-image-2.5-flare");
+  await workspace.locator(".prompt-input").fill("legacy mock gpt image 2.5 flare");
+  const legacyGptCallCount = state.providerRequests.filter((entry) => entry.path.endsWith("/images/generations")).length;
+  await workspace.locator(".run-btn").click();
+  await page.waitForFunction(
+    () => document.body.textContent.includes("完成：1 张图片"),
+    null,
+    { timeout: 5000 },
+  );
+  const legacyGptCall = state.providerRequests
+    .filter((entry) => entry.path.endsWith("/images/generations"))
+    .at(-1);
+  check(
+    "旧版新模型使用 GPT 路由并传递所选模型",
+    state.providerRequests.filter((entry) => entry.path.endsWith("/images/generations")).length > legacyGptCallCount &&
+      legacyGptCall.path.endsWith("/api/lucen/gpt/images/generations") &&
+      JSON.parse(legacyGptCall.body).model === "gpt-image-2.5-flare",
+  );
   const legacyContentBeforeOpen = state.localRequests.filter((entry) => entry.path.endsWith("/content")).length;
   const legacyThumbnailRequests = state.localRequests.filter((entry) => entry.path.endsWith("/thumbnail")).length;
   check("legacy result cards only request thumbnails", legacyThumbnailRequests > 0 && legacyContentBeforeOpen === 0);

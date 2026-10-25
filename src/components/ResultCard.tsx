@@ -1,7 +1,5 @@
 import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
 import {
-  Check,
-  Copy,
   Download,
   ExternalLink,
   Heart,
@@ -16,29 +14,26 @@ import type { ResultItem } from "../lib/types";
 import {
   copyTextToClipboard,
   downloadBlob,
-  downloadUrl,
   extOfMime,
   formatClock,
   resultFileBase,
 } from "../lib/utils";
-import { useFlash } from "./ui";
 
 async function getBlob(item: ResultItem): Promise<Blob | null> {
+  if (!item.hasBlob || !item.objectUrl) return null;
   try {
-    if (!item.hasBlob || !item.objectUrl) throw new Error("no image content");
     const response = await fetch(item.objectUrl);
-    if (response.ok) return await response.blob();
-  } catch {
-    // Fall back to the remote URL below when the local cache is unavailable.
-  }
-  const fallbackUrl = item.remoteUrl || item.url;
-  if (!fallbackUrl) return null;
-  try {
-    const response = await fetch(fallbackUrl);
     return response.ok ? await response.blob() : null;
   } catch {
     return null;
   }
+}
+
+function storageLabel(item: ResultItem): string {
+  if (item.favorite) return "收藏保留";
+  if (!item.expiresAt) return "本地";
+  const days = Math.ceil((item.expiresAt - Date.now()) / 86400000);
+  return days > 0 ? "本地 · " + days + " 天" : "即将清理";
 }
 
 export function ResultCard({
@@ -56,8 +51,6 @@ export function ResultCard({
   const deleteResult = useApp((s) => s.deleteResult);
   const useResultAsInput = useApp((s) => s.useResultAsInput);
   const resultToNewWorkspace = useApp((s) => s.resultToNewWorkspace);
-  const [copied, flashCopied] = useFlash();
-
   const ref = useRef<HTMLDivElement>(null);
   const rx = useSpring(useMotionValue(0), { stiffness: 220, damping: 16 });
   const ry = useSpring(useMotionValue(0), { stiffness: 220, damping: 16 });
@@ -82,11 +75,9 @@ export function ResultCard({
     const blob = await getBlob(item);
     const filename = resultFileBase(item);
     if (blob) {
-      downloadBlob(blob, filename + "." + extOfMime(blob.type));
-    } else if (item.remoteUrl || item.url) {
-      downloadUrl(item.remoteUrl || item.url || "", filename + "." + extOfMime(item.mime || "image/png"));
+      downloadBlob(blob, filename + "." + extOfMime(blob.type || item.mime || "image/png"));
     } else {
-      toast("没有可下载的数据", "err");
+      toast("本地图片内容不可用，请刷新后重试", "err");
     }
   }
 
@@ -99,31 +90,6 @@ export function ResultCard({
     }
   }
 
-  async function handleCopyLink() {
-    if (!item.remoteUrl) {
-      toast("原图仍在上传，完成后才能复制链接", "info");
-      return;
-    }
-    try {
-      await copyTextToClipboard(item.remoteUrl);
-      flashCopied();
-      toast("Remit 直链已复制", "ok");
-    } catch {
-      toast("复制失败", "err");
-    }
-  }
-
-  const uploadLabel = item.thumbnailStatus && item.thumbnailStatus !== "succeeded"
-    ? ({ pending: "缩略图排队", uploading: "缩略图上传中", retry_wait: "缩略图等待重试", blocked: "缩略图受阻", canceled: "缩略图已取消" } as Record<string, string>)[item.thumbnailStatus] || "缩略图排队"
-    : item.uploadStatus === "succeeded"
-      ? "图床"
-      : item.uploadStatus === "uploading"
-        ? "上传中"
-        : item.uploadStatus === "retry_wait"
-          ? "等待重试"
-          : item.uploadStatus === "blocked"
-            ? "需处理"
-            : "排队";
 
   return (
     <motion.div
@@ -155,7 +121,7 @@ export function ResultCard({
             />
           ) : (
             <div className="grid aspect-square w-full place-items-center bg-[var(--bg-soft)] text-[10px] text-[var(--muted)]">
-              缩略图排队
+              缩略图不可用
             </div>
           )}
         </button>
@@ -172,7 +138,7 @@ export function ResultCard({
             </span>
           )}
           <span className="chip !border-transparent !bg-black/55 !text-white/90 backdrop-blur">
-            {uploadLabel}
+            {storageLabel(item)}
           </span>
         </div>
 
@@ -198,9 +164,6 @@ export function ResultCard({
           <div className="flex items-center gap-1">
             <ActionIcon tip="下载" onClick={() => void handleDownload()}>
               <Download size={13} />
-            </ActionIcon>
-            <ActionIcon tip="复制图片链接" onClick={() => void handleCopyLink()}>
-              {copied ? <Check size={13} className="text-[var(--ok)]" /> : <Copy size={13} />}
             </ActionIcon>
             <ActionIcon tip="复制 Prompt" onClick={() => void handleCopyPrompt()}>
               <Type size={13} />

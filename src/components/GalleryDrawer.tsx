@@ -5,7 +5,6 @@ import {
   Copy,
   Download,
   Heart,
-  Link2,
   Recycle,
   Search,
   Square,
@@ -20,7 +19,6 @@ import type { ResultItem } from "../lib/types";
 import {
   copyTextToClipboard,
   downloadBlob,
-  downloadUrl,
   extOfMime,
   formatDateTime,
   resultFileBase,
@@ -37,6 +35,13 @@ type FilterKey = (typeof FILTERS)[number]["key"];
 
 const GALLERY_PAGE_SIZE = 32;
 
+function expiryLabel(item: ResultItem): string {
+  if (item.favorite) return "收藏保留";
+  if (!item.expiresAt) return "本地";
+  const days = Math.ceil((item.expiresAt - Date.now()) / 86400000);
+  return days > 0 ? "剩余 " + days + " 天" : "即将清理";
+}
+
 function recordToItem(record: GalleryRecord): ResultItem {
   const objectUrl = gallery.getContentUrl(record.id);
   const thumbnailObjectUrl = record.thumbnailReady ? gallery.getThumbnailUrl(record.id) : "";
@@ -51,25 +56,14 @@ function recordToItem(record: GalleryRecord): ResultItem {
     mode: record.mode as any,
     objectUrl,
     url: record.url,
-    remoteUrl: record.remoteUrl,
-    thumbnailUrl: record.thumbnailUrl,
     thumbnailObjectUrl,
     thumbnailReady: Boolean(record.thumbnailReady),
     thumbnailMime: record.thumbnailMime,
     thumbnailSha256: record.thumbnailSha256,
-    thumbnailStatus: record.thumbnailStatus,
-    thumbnailAttempts: record.thumbnailAttempts,
-    thumbnailNextRetryAt: record.thumbnailNextRetryAt,
-    thumbnailLastUploadError: record.thumbnailLastUploadError,
-    thumbnailUploadedAt: record.thumbnailUploadedAt,
     thumbnailByteSize: record.thumbnailByteSize,
     mime: record.mime,
-    uploadStatus: record.uploadStatus,
-    uploadAttempts: record.uploadAttempts,
-    nextRetryAt: record.nextRetryAt,
-    lastUploadError: record.lastUploadError,
-    uploadedAt: record.uploadedAt,
-    hasBlob: Boolean(record.filename || record.remoteUrl),
+    expiresAt: record.expiresAt,
+    hasBlob: Boolean(record.filename),
     sourceDataUrl: record.sourceDataUrl,
     favorite: record.favorite === 1,
     createdAt: record.createdAt,
@@ -83,16 +77,8 @@ async function getResultBlob(item: ResultItem): Promise<Blob | null> {
       if (response.ok) return await response.blob();
     }
   } catch {
-    // Fall back to the remote URL below.
   }
-  const fallbackUrl = item.remoteUrl || item.url;
-  if (!fallbackUrl) return null;
-  try {
-    const response = await fetch(fallbackUrl);
-    return response.ok ? await response.blob() : null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 function GalleryActionButton({
@@ -159,7 +145,7 @@ export function GalleryDrawer() {
         setTotal(page.total);
         setHasMore(page.hasMore);
       } catch {
-        toast("鐢诲粖鍔犺浇澶辫触", "err");
+        toast("画廊加载失败", "err");
       } finally {
         setLoading(false);
       }
@@ -241,9 +227,6 @@ export function GalleryDrawer() {
     if (blob) {
       downloadBlob(blob, filename + "." + extOfMime(blob.type));
       toast("已开始下载", "ok");
-    } else if (item.remoteUrl || item.url) {
-      downloadUrl(item.remoteUrl || item.url || "", filename + "." + extOfMime(item.mime || "image/png"));
-      toast("已打开下载链接", "info");
     } else {
       toast("没有可下载的数据", "err");
     }
@@ -263,16 +246,6 @@ export function GalleryDrawer() {
     try {
       await copyTextToClipboard(prompt);
       toast("已复制提示词", "ok");
-    } catch {
-      toast("复制失败", "err");
-    }
-  }
-
-  async function copyRemoteLink(item: ResultItem) {
-    if (!item.remoteUrl) return;
-    try {
-      await copyTextToClipboard(item.remoteUrl);
-      toast("Remit 直链已复制", "ok");
     } catch {
       toast("复制失败", "err");
     }
@@ -440,7 +413,7 @@ export function GalleryDrawer() {
                           />
                         ) : (
                           <div className="grid aspect-square w-full place-items-center bg-[var(--bg-soft)] text-[10px] text-[var(--muted)]">
-                            缩略图排队
+                            缩略图不可用
                           </div>
                         )}
                       </button>
@@ -462,17 +435,7 @@ export function GalleryDrawer() {
 
                       {!selectMode && (
                         <span className="chip pointer-events-none absolute left-2 top-2 !border-transparent !bg-black/60 !text-white/90">
-                          {item.thumbnailStatus && item.thumbnailStatus !== "succeeded"
-                            ? ({ pending: "缩略图排队", uploading: "缩略图上传中", retry_wait: "缩略图等待重试", blocked: "缩略图受阻", canceled: "缩略图已取消" } as Record<string, string>)[item.thumbnailStatus] || "缩略图排队"
-                            : item.uploadStatus === "succeeded"
-                            ? "图床"
-                            : item.uploadStatus === "uploading"
-                              ? "上传中"
-                              : item.uploadStatus === "retry_wait"
-                                ? "等待重试"
-                                : item.uploadStatus === "blocked"
-                                  ? "需处理"
-                                  : "排队"}
+                          {item.favorite ? "收藏保留" : "本地"}
                         </span>
                       )}
 
@@ -486,11 +449,6 @@ export function GalleryDrawer() {
                         <GalleryActionButton tip="复制提示词" onClick={() => void copyOriginalPrompt(item)}>
                           <Copy size={13} />
                         </GalleryActionButton>
-                        {item.remoteUrl && (
-                          <GalleryActionButton tip="复制 Remit 直链" onClick={() => void copyRemoteLink(item)}>
-                            <Link2 size={13} />
-                          </GalleryActionButton>
-                        )}
                         <GalleryActionButton tip="下载" onClick={() => void downloadOne(item)}>
                           <Download size={13} />
                         </GalleryActionButton>
@@ -510,7 +468,7 @@ export function GalleryDrawer() {
                       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2.5 pt-6 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                         <div className="truncate text-[11px] text-white/90">{item.prompt}</div>
                         <div className="mt-0.5 text-[10px] text-white/60">
-                          {item.workspaceTitle} · {formatDateTime(item.createdAt)}
+                          {item.workspaceTitle} · {formatDateTime(item.createdAt)} · {expiryLabel(item)}
                         </div>
                       </div>
                     </motion.div>

@@ -1,13 +1,6 @@
 export type GenMode = "text" | "edit";
 export type Theme = "dark" | "light";
 export type ImageProvider = "gpt" | "gemini";
-export type UploadStatus =
-  | "pending"
-  | "uploading"
-  | "retry_wait"
-  | "blocked"
-  | "succeeded"
-  | "canceled";
 export type GeminiAspectRatio =
   | "1:1"
   | "2:3"
@@ -61,24 +54,13 @@ export interface ResultItem {
   mode: GenMode;
   objectUrl: string;
   url?: string;
-  remoteUrl?: string;
-  thumbnailUrl?: string | null;
   thumbnailObjectUrl?: string;
   thumbnailReady?: boolean;
   thumbnailMime?: string | null;
   thumbnailSha256?: string | null;
-  thumbnailStatus?: UploadStatus;
-  thumbnailAttempts?: number;
-  thumbnailNextRetryAt?: number | null;
-  thumbnailLastUploadError?: string | null;
-  thumbnailUploadedAt?: number | null;
   thumbnailByteSize?: number | null;
   mime?: string;
-  uploadStatus?: UploadStatus;
-  uploadAttempts?: number;
-  nextRetryAt?: number | null;
-  lastUploadError?: string | null;
-  uploadedAt?: number | null;
+  expiresAt: number | null;
   hasBlob: boolean;
   sourceDataUrl?: string;
   favorite: boolean;

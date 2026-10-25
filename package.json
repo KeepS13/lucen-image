@@ -11,7 +11,7 @@
     "start": "node lucen-local-proxy.cjs",
     "verify:auth": "node verify-web-auth.cjs",
     "verify:providers": "node verify-providers.cjs",
-    "verify:uploads": "node verify-remit-queue.cjs"
+    "verify:storage": "node verify-local-media.cjs"
   },
   "dependencies": {
     "@fontsource-variable/space-grotesk": "^5.2.5",

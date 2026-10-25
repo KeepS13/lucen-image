@@ -186,25 +186,14 @@ function recordToItem(record: GalleryRecord): ResultItem {
     mode: record.mode as GenMode,
     objectUrl,
     url: record.url,
-    remoteUrl: record.remoteUrl,
-    thumbnailUrl: record.thumbnailUrl,
     thumbnailObjectUrl,
     thumbnailReady: Boolean(record.thumbnailReady),
     thumbnailMime: record.thumbnailMime,
     thumbnailSha256: record.thumbnailSha256,
-    thumbnailStatus: record.thumbnailStatus,
-    thumbnailAttempts: record.thumbnailAttempts,
-    thumbnailNextRetryAt: record.thumbnailNextRetryAt,
-    thumbnailLastUploadError: record.thumbnailLastUploadError,
-    thumbnailUploadedAt: record.thumbnailUploadedAt,
     thumbnailByteSize: record.thumbnailByteSize,
     mime: record.mime,
-    uploadStatus: record.uploadStatus,
-    uploadAttempts: record.uploadAttempts,
-    nextRetryAt: record.nextRetryAt,
-    lastUploadError: record.lastUploadError,
-    uploadedAt: record.uploadedAt,
-    hasBlob: Boolean(record.filename || record.remoteUrl),
+    expiresAt: record.expiresAt,
+    hasBlob: Boolean(record.filename),
     sourceDataUrl: record.sourceDataUrl,
     favorite: record.favorite === 1,
     createdAt: record.createdAt,
@@ -894,13 +883,13 @@ export const useApp = create<AppStore>()((set, get) => {
     },
 
     deleteResult: async (item) => {
-      if (
-        item.remoteUrl &&
-        !window.confirm("这会从本地画廊移除记录，但 Remit 远端图片没有删除接口，公开直链仍会保留。继续吗？")
-      ) {
+      if (!window.confirm("这会永久删除本地原图、缩略图和画廊记录。继续吗？")) return;
+      try {
+        await gallery.delete(item.id);
+      } catch (error) {
+        get().toast(error instanceof Error ? error.message : "删除失败", "err");
         return;
       }
-      await gallery.delete(item.id).catch(() => undefined);
       set((state) => ({
         results: {
           ...state.results,
@@ -910,20 +899,36 @@ export const useApp = create<AppStore>()((set, get) => {
         },
       }));
       get().bumpGallery();
-      if (item.remoteUrl) get().toast("已移除本地记录；Remit 远端文件仍保留", "info");
+      get().toast("已删除本地图片", "ok");
     },
 
     toggleFavorite: async (item) => {
       const next = !item.favorite;
-      await gallery.updateFavorite(item.id, next).catch(() => undefined);
-      set((state) => ({
-        results: {
-          ...state.results,
-          [item.workspaceId]: (state.results[item.workspaceId] || []).map((r) =>
-            r.id === item.id ? { ...r, favorite: next } : r,
-          ),
-        },
-      }));
+      try {
+        await gallery.updateFavorite(item.id, next);
+      } catch (error) {
+        get().toast(error instanceof Error ? error.message : "收藏状态更新失败", "err");
+        return;
+      }
+      try {
+        const updated = recordToItem(await gallery.get(item.id));
+        set((state) => ({
+          results: {
+            ...state.results,
+            [item.workspaceId]: (state.results[item.workspaceId] || []).map((r) =>
+              r.id === item.id ? updated : r,
+            ),
+          },
+        }));
+      } catch {
+        set((state) => ({
+          results: {
+            ...state.results,
+            [item.workspaceId]: (state.results[item.workspaceId] || []).filter((r) => r.id !== item.id),
+          },
+        }));
+        get().toast("该图片已超过保留期限并被清理", "info");
+      }
       get().bumpGallery();
     },
 

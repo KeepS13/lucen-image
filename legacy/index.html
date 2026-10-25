@@ -320,7 +320,7 @@
     .provider-status.ok { color: var(--ok); }
     .provider-status.err { color: var(--danger); }
 
-    .upload-queue {
+    .local-storage {
       display: grid;
       gap: 8px;
       padding: 12px;
@@ -331,7 +331,7 @@
       color: var(--muted);
     }
 
-    .upload-queue-head {
+    .local-storage-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -341,29 +341,56 @@
       font-weight: 600;
     }
 
-    .upload-queue-errors {
+    .local-storage-counts {
       display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      text-align: center;
+    }
+
+    .local-storage-counts span {
+      padding: 5px;
+      border-radius: 6px;
+      background: var(--panel);
+    }
+
+    .local-storage-form {
+      display: flex;
+      align-items: end;
       gap: 6px;
     }
 
-    .upload-queue-error {
+    .local-storage-form label {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .upload-queue-error span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .upload-queue-error button {
-      min-height: 28px;
-      padding: 0 8px;
+      flex: 1;
+      gap: 4px;
+      color: var(--ink);
       font-size: 11px;
     }
+
+    .local-storage-form input {
+      min-height: 32px;
+      padding: 4px 7px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .local-storage-form button {
+      min-height: 32px;
+      padding: 0 9px;
+      font-size: 11px;
+    }
+
+    .local-storage-detail {
+      display: grid;
+      gap: 3px;
+      line-height: 1.45;
+    }
+
+    .local-storage-detail .error { color: var(--danger); overflow-wrap: anywhere; }
 
     label.field {
       display: grid;
@@ -754,7 +781,7 @@
       white-space: nowrap;
     }
 
-    .result-upload-status {
+    .result-storage-status {
       width: fit-content;
       max-width: 100%;
       padding: 3px 7px;
@@ -769,9 +796,7 @@
       white-space: nowrap;
     }
 
-    .result-upload-status.succeeded { color: var(--ok); border-color: #a7f3d0; }
-    .result-upload-status.retry_wait,
-    .result-upload-status.blocked { color: var(--danger); border-color: #fecaca; }
+    .result-storage-status { color: var(--ok); border-color: #a7f3d0; }
 
     .result-actions {
       display: grid;
@@ -1150,14 +1175,22 @@
           </div>
           <div id="geminiConnectionStatus" class="provider-status">未连接</div>
         </div>
-        <section class="upload-queue" aria-label="Remit 图床队列">
-          <div class="upload-queue-head">
-            <span>Remit 图床</span>
-            <span id="uploadQueueState">读取中</span>
+        <section class="local-storage" role="region" aria-label="本地存储">
+          <div class="local-storage-head">
+            <span>本地存储</span>
+            <span id="storageState">读取中</span>
           </div>
-          <div id="uploadQueueCounts">正在读取队列...</div>
-          <div id="uploadMigration"></div>
-          <div id="uploadQueueErrors" class="upload-queue-errors"></div>
+          <div class="local-storage-counts">
+            <span id="storageGalleryCount">图片 —</span>
+            <span id="storageInputCount">输入图 —</span>
+          </div>
+          <div class="local-storage-form">
+            <label>保留天数
+              <input id="storageRetentionDays" type="number" min="1" max="3650" step="1" value="30">
+            </label>
+            <button id="storageSaveBtn" type="button">保存</button>
+          </div>
+          <div class="local-storage-detail" id="storageDetail">正在读取本地存储状态...</div>
         </section>
       </div>
     </aside>
@@ -1325,10 +1358,12 @@
         geminiConfigured: document.getElementById("geminiConfiguredState"),
         gptConnection: document.getElementById("gptConnectionStatus"),
         geminiConnection: document.getElementById("geminiConnectionStatus"),
-        uploadQueueState: document.getElementById("uploadQueueState"),
-        uploadQueueCounts: document.getElementById("uploadQueueCounts"),
-        uploadMigration: document.getElementById("uploadMigration"),
-        uploadQueueErrors: document.getElementById("uploadQueueErrors"),
+        storageState: document.getElementById("storageState"),
+        storageGalleryCount: document.getElementById("storageGalleryCount"),
+        storageInputCount: document.getElementById("storageInputCount"),
+        storageRetentionDays: document.getElementById("storageRetentionDays"),
+        storageSaveBtn: document.getElementById("storageSaveBtn"),
+        storageDetail: document.getElementById("storageDetail"),
         viewer: document.getElementById("imageViewer"),
         viewerTitle: document.getElementById("viewerTitle"),
         viewerStage: document.getElementById("viewerStage"),
@@ -1851,24 +1886,16 @@
 
       function applyGalleryRecord(result, record) {
         if (!record) return false;
-        const previous = [result.remoteUrl, result.uploadStatus, result.uploadAttempts, result.nextRetryAt, result.uploadError, result.thumbnailUrl, result.thumbnailStatus, result.thumbnailReady].join("|");
+        const previous = [result.galleryId, result.favorite, result.expiresAt, result.thumbnailReady].join("|");
         result.galleryId = record.id;
         result.objectUrl = LOCAL_API_BASE + "/gallery/" + encodeURIComponent(record.id) + "/content";
-        result.remoteUrl = record.remoteUrl || "";
-        result.thumbnailUrl = record.thumbnailUrl || "";
-        result.thumbnailStatus = record.thumbnailStatus || "pending";
-        result.thumbnailAttempts = Number(record.thumbnailAttempts || 0);
-        result.thumbnailNextRetryAt = record.thumbnailNextRetryAt || null;
-        result.thumbnailError = record.thumbnailLastUploadError || "";
         result.thumbnailReady = Boolean(record.thumbnailReady);
         result.thumbnailObjectUrl = result.thumbnailReady ? LOCAL_API_BASE + "/gallery/" + encodeURIComponent(record.id) + "/thumbnail" : "";
         result.mime = record.mime || result.mime || (result.blob && result.blob.type) || "image/png";
-        result.uploadStatus = record.uploadStatus || "pending";
-        result.uploadAttempts = Number(record.uploadAttempts || 0);
-        result.nextRetryAt = record.nextRetryAt || null;
-        result.uploadError = record.lastUploadError || "";
+        result.favorite = record.favorite === 1;
+        result.expiresAt = record.expiresAt ?? null;
         if (record.createdAt) result.createdAt = new Date(record.createdAt);
-        const current = [result.remoteUrl, result.uploadStatus, result.uploadAttempts, result.nextRetryAt, result.uploadError, result.thumbnailUrl, result.thumbnailStatus, result.thumbnailReady].join("|");
+        const current = [result.galleryId, result.favorite, result.expiresAt, result.thumbnailReady].join("|");
         return previous !== current;
       }
 
@@ -1902,8 +1929,7 @@
           applyGalleryRecord(result, response.record);
           if (originalObjectUrl && originalObjectUrl.startsWith("blob:")) URL.revokeObjectURL(originalObjectUrl);
         } catch (error) {
-          result.uploadStatus = "blocked";
-          result.uploadError = "无法写入本地上传队列：" + (error && error.message ? error.message : "未知错误");
+          result.storageError = "本地存储失败：" + (error && error.message ? error.message : "未知错误");
         }
         return result;
       }
@@ -1994,19 +2020,12 @@
           dataUrl: input.dataUrl || "",
           objectUrl: blob ? URL.createObjectURL(blob) : (input.objectUrl || ""),
           url: input.url || "",
-          remoteUrl: "",
-          thumbnailUrl: "",
           thumbnailObjectUrl: "",
-          thumbnailStatus: "pending",
-          thumbnailAttempts: 0,
-          thumbnailNextRetryAt: null,
-          thumbnailError: "",
           thumbnailReady: false,
           mime: input.mime || (blob && blob.type) || "image/png",
-          uploadStatus: "pending",
-          uploadAttempts: 0,
-          nextRetryAt: null,
-          uploadError: "",
+          favorite: false,
+          expiresAt: null,
+          storageError: "",
           prompt: input.prompt || "",
           revisedPrompt: input.revisedPrompt || "",
           source: input.source || "",
@@ -2034,7 +2053,7 @@
           if (result.thumbnailObjectUrl) image.src = result.thumbnailObjectUrl;
           else image.className = "thumbnail-pending";
           image.addEventListener("click", () => {
-            openImageViewer(result.objectUrl || result.remoteUrl || result.url, result.revisedPrompt || result.prompt || "生成图片");
+            openImageViewer(result.objectUrl, result.revisedPrompt || result.prompt || "生成图片");
           });
           card.appendChild(image);
 
@@ -2047,15 +2066,14 @@
           title.textContent = "#" + (workspace.results.length - index) + " · " + formatTime(result.createdAt);
           meta.appendChild(title);
 
-          const uploadStatus = document.createElement("div");
-          uploadStatus.className = "result-upload-status " + (result.uploadStatus || "pending");
-          uploadStatus.title = result.uploadError || "";
-          uploadStatus.textContent = uploadStatusText(result);
-          meta.appendChild(uploadStatus);
+          const storageStatus = document.createElement("div");
+          storageStatus.className = "result-storage-status";
+          storageStatus.title = result.storageError || "";
+          storageStatus.textContent = storageStatusText(result);
+          meta.appendChild(storageStatus);
 
           const actions = document.createElement("div");
           actions.className = "result-actions";
-          actions.appendChild(makeAction("复制图片链接", () => copyRemoteLink(result, workspace)));
           actions.appendChild(makeDownload(result));
           actions.appendChild(makeAction("二创", () => useResultForEdit(result, workspace)));
           actions.appendChild(makeAction("新窗口", () => continueInNewWindow(result, workspace)));
@@ -2076,7 +2094,7 @@
 
       function makeDownload(result) {
         const link = document.createElement("a");
-        link.href = result.objectUrl || result.dataUrl || result.url;
+        link.href = result.objectUrl;
         const type = result.mime || result.blob && result.blob.type || (result.dataUrl.match(/^data:([^;]+)/) || [])[1] || "image/png";
         const extension = type === "image/jpeg" ? ".jpg" : type === "image/webp" ? ".webp" : ".png";
         link.download = "lucen-" + result.id.slice(0, 8) + extension;
@@ -2084,34 +2102,12 @@
         return link;
       }
 
-      function uploadStatusText(result) {
-        if (result.thumbnailStatus && result.thumbnailStatus !== "succeeded") {
-          const thumbLabels = {
-            pending: "缩略图排队",
-            uploading: "缩略图上传中",
-            retry_wait: "缩略图等待重试",
-            blocked: "缩略图受阻",
-            canceled: "缩略图已取消"
-          };
-          return thumbLabels[result.thumbnailStatus] || "缩略图排队";
-        }
-        const labels = {
-          pending: "等待上传",
-          uploading: "正在上传",
-          retry_wait: "等待重试",
-          blocked: "上传受阻",
-          succeeded: "Remit 已验证",
-          canceled: "已取消"
-        };
-        return labels[result.uploadStatus] || "等待上传";
-      }
-
-      async function copyRemoteLink(result, workspace) {
-        if (!result.remoteUrl) {
-          setWorkspaceStatus(workspace, "Remit 上传尚未完成，完成后才能复制公开链接", "err");
-          return;
-        }
-        await copyText(result.remoteUrl, workspace);
+      function storageStatusText(result) {
+        if (result.storageError) return "本地保存失败";
+        if (result.favorite) return "收藏保留";
+        if (!result.expiresAt) return "本地";
+        const days = Math.ceil((result.expiresAt - Date.now()) / 86400000);
+        return days > 0 ? "本地 · 剩余 " + days + " 天" : "即将清理";
       }
 
       async function useResultForEdit(result, workspace) {
@@ -2150,14 +2146,6 @@
             result.mime = result.blob.type || result.mime;
             return result.blob;
           }
-        }
-        if (result.url) {
-          const response = await fetch(result.url);
-          if (!response.ok) return null;
-          result.blob = await response.blob();
-          result.dataUrl = await blobToDataUrl(result.blob);
-          result.objectUrl = URL.createObjectURL(result.blob);
-          return result.blob;
         }
         return null;
       }
@@ -2308,84 +2296,82 @@
         }).format(date);
       }
 
-      let uploadsRefreshing = false;
+      let storageRefreshing = false;
+      let storageStatus = null;
 
-      async function refreshLegacyUploads() {
-        if (uploadsRefreshing) return;
-        uploadsRefreshing = true;
+      async function refreshLegacyStorage() {
+        if (storageRefreshing) return;
+        storageRefreshing = true;
         try {
-          const summary = await localJson("/uploads?limit=80");
-          renderUploadSummary(summary);
-
+          const status = await localJson("/storage");
+          renderStorageStatus(status);
           await Promise.all(app.workspaces.map(async (workspace) => {
             const page = await localJson("/gallery?workspaceId=" + encodeURIComponent(workspace.id) + "&limit=80");
             const records = new Map((page.items || []).map((record) => [record.id, record]));
             let changed = false;
-            workspace.results.forEach((result) => {
+            workspace.results = workspace.results.filter((result) => {
               const record = records.get(result.galleryId || result.id);
-              if (record) changed = applyGalleryRecord(result, record) || changed;
+              if (!record) {
+                changed = true;
+                return false;
+              }
+              changed = applyGalleryRecord(result, record) || changed;
+              return true;
             });
             if (changed) renderResults(workspace);
           }));
         } catch (error) {
-          els.uploadQueueState.textContent = "服务不可用";
-          els.uploadQueueCounts.textContent = error && error.message ? error.message : "无法读取上传队列";
+          els.storageState.textContent = "服务不可用";
+          els.storageDetail.textContent = error && error.message ? error.message : "无法读取本地存储状态";
         } finally {
-          uploadsRefreshing = false;
+          storageRefreshing = false;
         }
       }
 
-      function renderUploadSummary(summary) {
-        const counts = summary.counts || {};
-        const active = Number(counts.pending || 0) + Number(counts.uploading || 0) + Number(counts.retry_wait || 0);
-        const succeeded = Number(counts.succeeded || 0);
-        const blocked = Number(counts.blocked || 0);
-        const worker = summary.worker || {};
-        els.uploadQueueState.textContent = worker.enabled === false ? "已停用" : worker.running ? "上传中" : active ? "等待处理" : "空闲";
-        els.uploadQueueCounts.textContent = "处理中 " + active + " · 已完成 " + succeeded + " · 受阻 " + blocked;
-        const breakdown = summary.breakdown || {};
-        const originalBreakdown = breakdown.original || {};
-        const thumbnailBreakdown = breakdown.thumbnail || {};
-        if (breakdown.original || breakdown.thumbnail) {
-          els.uploadQueueCounts.textContent += " · 原图 " + Number(originalBreakdown.succeeded || 0) + " 完成 / " + (Number(originalBreakdown.pending || 0) + Number(originalBreakdown.uploading || 0) + Number(originalBreakdown.retry_wait || 0)) + " 待处理 · 缩略图 " + Number(thumbnailBreakdown.succeeded || 0) + " 完成 / " + (Number(thumbnailBreakdown.pending || 0) + Number(thumbnailBreakdown.uploading || 0) + Number(thumbnailBreakdown.retry_wait || 0)) + " 待处理";
+      function renderStorageStatus(status) {
+        storageStatus = status;
+        els.storageState.textContent = "每小时清理";
+        els.storageGalleryCount.textContent = "图片 " + Number(status.galleryCount || 0);
+        els.storageInputCount.textContent = "输入图 " + Number(status.inputCount || 0);
+        els.storageRetentionDays.value = String(status.retentionDays || 30);
+        const lastCleanup = status.lastCleanupAt ? new Date(status.lastCleanupAt).toLocaleString("zh-CN", { hour12: false }) : "尚未运行";
+        const nextCleanup = status.nextCleanupAt ? new Date(status.nextCleanupAt).toLocaleString("zh-CN", { hour12: false }) : "—";
+        const details = ["最近清理 " + lastCleanup, "下次清理 " + nextCleanup, "上次删除 " + Number(status.lastDeletedCount || 0) + " 项"];
+        if (status.lastError) details.push("上次错误：" + status.lastError);
+        els.storageDetail.textContent = details.join(" · ");
+      }
+
+      async function saveStorageRetention() {
+        const value = Number(els.storageRetentionDays.value);
+        if (!Number.isInteger(value) || value < 1 || value > 3650) {
+          setGlobalStatus("保留天数必须是 1–3650 的整数。", "err");
+          return;
         }
-
-        const historical = summary.historical || {};
-        els.uploadMigration.textContent = historical.total
-          ? "历史迁移 " + Number(historical.succeeded || 0) + " / " + Number(historical.total || 0) + (historical.blocked ? " · 受阻 " + historical.blocked : "")
-          : "暂无历史图片需要迁移";
-
-        els.uploadQueueErrors.innerHTML = "";
-        (summary.items || [])
-          .filter((job) => job.status === "retry_wait" || job.status === "blocked")
-          .slice(0, 2)
-          .forEach((job) => {
-            const row = document.createElement("div");
-            row.className = "upload-queue-error";
-            const message = document.createElement("span");
-            message.title = job.lastError || "上传失败";
-            message.textContent = (job.workspaceTitle || "图片") + " · " + (job.variant === "thumbnail" ? "缩略图" : "原图") + "：" + (job.lastError || "等待重试");
-            const retry = document.createElement("button");
-            retry.type = "button";
-            retry.textContent = "立即重试";
-            retry.addEventListener("click", async () => {
-              retry.disabled = true;
-              try {
-                await localJson("/uploads/" + encodeURIComponent(job.galleryId) + "/retry?variant=" + encodeURIComponent(job.variant || "original"), { method: "POST" });
-                await refreshLegacyUploads();
-              } catch (error) {
-                els.uploadQueueState.textContent = error && error.message ? error.message : "重试失败";
-              } finally {
-                retry.disabled = false;
-              }
-            });
-            row.append(message, retry);
-            els.uploadQueueErrors.appendChild(row);
+        if (storageStatus && value < storageStatus.retentionDays) {
+          const confirmed = window.confirm("缩短保留期限会立即永久删除已超过新期限的本地图片和输入图，且无法恢复。继续吗？");
+          if (!confirmed) return;
+        }
+        els.storageSaveBtn.disabled = true;
+        try {
+          const result = await localJson("/storage", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ retentionDays: value })
           });
+          renderStorageStatus(result);
+          setGlobalStatus(result.failures && result.failures.length
+            ? "设置已保存，但有 " + result.failures.length + " 项文件清理失败，将稍后重试。"
+            : "保留期限已更新" + (result.deleted ? "，已清理 " + result.deleted + " 项。" : "。"), result.failures && result.failures.length ? "err" : "ok");
+          await refreshLegacyStorage();
+        } catch (error) {
+          setGlobalStatus(error && error.message ? error.message : "保存本地存储设置失败", "err");
+        } finally {
+          els.storageSaveBtn.disabled = false;
+        }
       }
 
       async function testConnection(provider) {
-        const expectedModel = provider === "gemini" ? GEMINI_MODEL : GPT_MODEL;
+        const expectedModels = provider === "gemini" ? [GEMINI_MODEL] : GPT_MODEL_IDS;
         const button = provider === "gemini" ? els.testGemini : els.testGpt;
         showDiagnostic("");
         if (!app.providers[provider]) {
@@ -2467,8 +2453,9 @@
         } catch (error) {
           setGlobalStatus(error && error.message ? error.message : "服务端配置读取失败", "err");
         }
-        void refreshLegacyUploads();
-        window.setInterval(refreshLegacyUploads, 5000);
+        void refreshLegacyStorage();
+        window.setInterval(refreshLegacyStorage, 30000);
+        els.storageSaveBtn.addEventListener("click", () => void saveStorageRetention());
       }
 
       void boot();

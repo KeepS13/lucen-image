@@ -251,7 +251,7 @@ function Workbench() {
               </motion.button>
             </motion.div>
             <footer className="py-8 text-center text-[11px] text-[var(--muted)]/70">
-              LUCEN 光相工作台 v2 · 结果自动上传 Remit 图床 · Provider 密钥由服务端管理
+              LUCEN 光相工作台 v2 · 图片保存在本地服务器 · Provider 密钥由服务端管理
             </footer>
           </main>
         </div>

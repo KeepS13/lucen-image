@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
 const { createAuthManager } = require("./lucen-auth.cjs");
-const { createRemitUploadManager } = require("./remit-upload.cjs");
+const { createLocalMediaManager } = require("./local-media.cjs");
 
 const HOST = process.env.LUCEN_WORKBENCH_HOST || "0.0.0.0";
 const PORT = Number(process.env.LUCEN_WORKBENCH_PORT || 8787);
@@ -65,7 +65,13 @@ db.exec(`
     url TEXT,
     sourceDataUrl TEXT,
     favorite INTEGER DEFAULT 0,
-    createdAt INTEGER
+    createdAt INTEGER,
+    mime TEXT,
+    contentSha256 TEXT,
+    thumbnailFilename TEXT,
+    thumbnailMime TEXT,
+    thumbnailSha256 TEXT,
+    thumbnailByteSize INTEGER
   );
   CREATE INDEX IF NOT EXISTS idx_gallery_workspace ON gallery(workspaceId);
   CREATE INDEX IF NOT EXISTS idx_gallery_created ON gallery(createdAt);
@@ -182,11 +188,10 @@ function logLine(event) {
   } catch (_) {}
 }
 
-const remitUploads = createRemitUploadManager({
+const localMedia = createLocalMediaManager({
   db,
   dataDir: DATA_DIR,
   logger: logLine,
-  uploadsEnabled: process.env.LUCEN_DISABLE_REMIT_UPLOAD !== "1",
 });
 
 function bodyPreview(buffer, limit = 800) {
@@ -399,41 +404,21 @@ async function handleLocalApi(req, res) {
 
     // Gallery
     if (pathname === "/api/local/gallery" && method === "GET") {
-      const workspaceId = url.searchParams.get("workspaceId");
-      const limit = Math.max(1, Math.min(80, parseInt(url.searchParams.get("limit") || "40", 10) || 40));
-      const offset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
-      const filter = url.searchParams.get("filter");
-      const query = (url.searchParams.get("query") || "").trim();
-      const clauses = [];
-      const params = [];
-      if (workspaceId) {
-        clauses.push("workspaceId = ?");
-        params.push(workspaceId);
-      }
-      if (filter === "fav") clauses.push("favorite = 1");
-      else if (filter === "text" || filter === "edit") {
-        clauses.push("mode = ?");
-        params.push(filter);
-      }
-      if (query) {
-        clauses.push("(prompt LIKE ? OR revisedPrompt LIKE ? OR workspaceTitle LIKE ?)");
-        const like = "%" + query + "%";
-        params.push(like, like, like);
-      }
-      const whereSql = clauses.length ? " WHERE " + clauses.join(" AND ") : "";
-      const total = db.prepare("SELECT COUNT(*) AS count FROM gallery" + whereSql).get(...params).count;
-      const rows = db
-        .prepare("SELECT * FROM gallery" + whereSql + " ORDER BY createdAt DESC LIMIT ? OFFSET ?")
-        .all(...params, limit, offset);
-      const items = rows.map((row) => remitUploads.getGallery(row.id) || row);
-      sendJson(res, 200, { items, total, limit, offset, hasMore: offset + rows.length < total });
+      const result = localMedia.listGallery({
+        workspaceId: url.searchParams.get("workspaceId") || undefined,
+        limit: Math.max(1, Math.min(80, parseInt(url.searchParams.get("limit") || "40", 10) || 40)),
+        offset: Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0),
+        filter: url.searchParams.get("filter") || undefined,
+        query: (url.searchParams.get("query") || "").trim() || undefined,
+      });
+      sendJson(res, 200, result);
       return;
     }
 
     if (pathname === "/api/local/gallery" && method === "POST") {
       const body = JSON.parse(await readBody(req));
       const { id, workspaceId, workspaceTitle, prompt, revisedPrompt, model, size, mode, blob, mime, url, sourceDataUrl, createdAt } = body;
-      const record = await remitUploads.createGallery(
+      const record = await localMedia.createGallery(
         { id, workspaceId, workspaceTitle, prompt, revisedPrompt, model, size, mode, url, sourceDataUrl, createdAt },
         blob ? Buffer.from(blob, "base64") : null,
         mime,
@@ -445,41 +430,58 @@ async function handleLocalApi(req, res) {
     if (pathname === "/api/local/gallery/favorite" && method === "PUT") {
       const body = JSON.parse(await readBody(req));
       db.prepare("UPDATE gallery SET favorite = ? WHERE id = ?").run(body.favorite ? 1 : 0, body.id);
+      await localMedia.runCleanup();
       sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (pathname === "/api/local/storage" && method === "GET") {
+      sendJson(res, 200, localMedia.getStorageStatus());
+      return;
+    }
+
+    if (pathname === "/api/local/storage" && method === "PUT") {
+      const body = JSON.parse(await readBody(req));
+      try {
+        sendJson(res, 200, await localMedia.updateRetentionDays(body.retentionDays));
+      } catch (error) {
+        if (error.code !== "INVALID_RETENTION_DAYS") throw error;
+        sendJson(res, 400, { error: { code: error.code, message: error.message } });
+      }
       return;
     }
 
     const galleryContentMatch = pathname.match(/^\/api\/local\/gallery\/([^/]+)\/content$/);
     if (galleryContentMatch && method === "GET") {
-      const content = await remitUploads.getContent(decodeURIComponent(galleryContentMatch[1]));
+      const content = await localMedia.getContent(decodeURIComponent(galleryContentMatch[1]));
       if (!content) {
         sendJson(res, 404, { error: "Image content is unavailable" });
         return;
       }
       send(res, 200, {
         "Content-Type": content.mime || "application/octet-stream",
-        "Cache-Control": content.source === "remote" ? "private, max-age=300" : "no-store",
+        "Cache-Control": "private, no-store",
       }, content.buffer);
       return;
     }
 
     const galleryThumbnailMatch = pathname.match(/^\/api\/local\/gallery\/([^/]+)\/thumbnail$/);
     if (galleryThumbnailMatch && method === "GET") {
-      const thumbnail = await remitUploads.getThumbnail(decodeURIComponent(galleryThumbnailMatch[1]));
+      const thumbnail = await localMedia.getThumbnail(decodeURIComponent(galleryThumbnailMatch[1]));
       if (!thumbnail) {
-        sendJson(res, 404, { error: "Thumbnail is not ready" });
+        sendJson(res, 404, { error: "Thumbnail is unavailable" });
         return;
       }
       send(res, 200, {
         "Content-Type": "image/webp",
-        "Cache-Control": thumbnail.source === "remote" ? "public, max-age=3600" : "no-store",
+        "Cache-Control": "private, no-store",
       }, thumbnail.buffer);
       return;
     }
 
     const galleryRecordMatch = pathname.match(/^\/api\/local\/gallery\/([^/]+)$/);
     if (galleryRecordMatch && method === "GET") {
-      const record = remitUploads.getGallery(decodeURIComponent(galleryRecordMatch[1]));
+      const record = localMedia.getGallery(decodeURIComponent(galleryRecordMatch[1]));
       if (!record) {
         sendJson(res, 404, { error: "Not found" });
         return;
@@ -488,21 +490,8 @@ async function handleLocalApi(req, res) {
       return;
     }
 
-    if (pathname === "/api/local/uploads" && method === "GET") {
-      const limit = parseInt(url.searchParams.get("limit") || "100", 10) || 100;
-      sendJson(res, 200, remitUploads.listUploads(limit));
-      return;
-    }
-
-    const uploadRetryMatch = pathname.match(/^\/api\/local\/uploads\/([^/]+)\/retry$/);
-    if (uploadRetryMatch && method === "POST") {
-      const retried = remitUploads.retry(decodeURIComponent(uploadRetryMatch[1]), url.searchParams.get("variant") || undefined);
-      sendJson(res, retried ? 200 : 409, { ok: retried });
-      return;
-    }
-
     if (galleryRecordMatch && method === "DELETE") {
-      const result = remitUploads.deleteGallery(decodeURIComponent(galleryRecordMatch[1]));
+      const result = await localMedia.deleteGallery(decodeURIComponent(galleryRecordMatch[1]));
       sendJson(res, 200, { ok: true, ...result });
       return;
     }
@@ -607,9 +596,7 @@ async function handleLocalApi(req, res) {
     if (pathname.startsWith("/api/local/image/")) {
       const filename = pathname.replace("/api/local/image/", "");
       const safeFilename = path.basename(filename);
-      const filePath = ["images", "pending-uploads"]
-        .map((directory) => path.join(DATA_DIR, directory, safeFilename))
-        .find((candidate) => fs.existsSync(candidate));
+      const filePath = path.join(DATA_DIR, "images", safeFilename);
       if (!filePath) {
         sendJson(res, 404, { error: "Not found" });
         return;
@@ -804,7 +791,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  const historicalQueued = remitUploads.start();
+  localMedia.start();
   console.log("Lucen image workbench is running:");
   console.log("  http://" + HOST + ":" + PORT + "/");
   console.log("Proxy target:");
@@ -814,8 +801,8 @@ server.listen(PORT, HOST, () => {
   console.log("  Gemini: " + (getApiKey("gemini") ? "found" : "not found"));
   console.log("Local data:");
   console.log("  " + DATA_DIR);
-  console.log("Remit historical queue:");
-  console.log("  " + historicalQueued + " image(s) added");
+  console.log("Local media retention:");
+  console.log("  " + localMedia.getStorageStatus().retentionDays + " day(s), hourly cleanup");
   console.log("");
   console.log("Access password: " + (auth.enabled ? "required" : "disabled in local development"));
 });
@@ -842,15 +829,11 @@ async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log("Received " + signal + ", shutting down...");
-  remitUploads.stop();
+  localMedia.stop();
 
   const closeServer = new Promise((resolve) => {
     server.close(() => resolve());
   });
-  const deadline = Date.now() + 30000;
-  while (remitUploads.getHealth().worker.running && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
   await closeServer;
   try {
     db.close();
