@@ -72,6 +72,7 @@ export function LocalStorageStatus() {
           className="icon-btn btn !size-7 !min-h-7"
           onClick={() => void load()}
           data-tip="刷新本地存储状态"
+          data-tip-align="end"
           aria-label="刷新本地存储状态"
         >
           <RefreshCw size={13} />

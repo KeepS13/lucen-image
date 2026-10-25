@@ -46,6 +46,10 @@
   --tooltip-bg: rgba(28, 28, 44, 0.95);
 }
 
+html {
+  overflow-x: clip;
+}
+
 html,
 body {
   margin: 0;
@@ -336,6 +340,17 @@ select.input option {
 [data-tip]:hover::after {
   opacity: 1;
   translate: -50% 0;
+}
+
+/* 贴右边缘的按钮改为右对齐，避免提示溢出视口 */
+[data-tip-align="end"]::after {
+  left: auto;
+  right: 0;
+  translate: 0 5px;
+}
+
+[data-tip-align="end"]:hover::after {
+  translate: 0 0;
 }
 
 .gallery-action-button {
